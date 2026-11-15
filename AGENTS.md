@@ -119,6 +119,8 @@ This is the heart of the project and must stay framework-agnostic: plain TypeScr
 
 Keep entity state as plain objects (`{ x, y, vy, state }`), updated by pure functions (`applyGravity(entity, dt)`, `checkCollision(mascot, obstacle)`), not classes with hidden internal mutation, so tests can assert on plain input/output.
 
+Units: engine functions work in pixels and seconds (`dt` is delta time in seconds, speeds are px/s, `y` grows downward), and each one returns a new entity instead of mutating its input. Values that depend on the canvas size, such as the ground line `groundY`, are passed in by `GameCanvas.tsx`.
+
 ### src/components/
 
 Create a component only when it's reused (`Button`, `ScoreBadge`) or represents a clear, nameable UI concept. Don't extract one-off pieces of a single screen too early — when unsure, ask.
