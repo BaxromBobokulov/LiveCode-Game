@@ -121,6 +121,8 @@ Keep entity state as plain objects (`{ x, y, vy, state }`), updated by pure func
 
 Units: engine functions work in pixels and seconds (`dt` is delta time in seconds, speeds are px/s, `y` grows downward), and each one returns a new entity instead of mutating its input. Values that depend on the canvas size, such as the ground line `groundY`, are passed in by `GameCanvas.tsx`.
 
+Randomness: an engine function that needs a random number takes a `random: () => number` argument that defaults to `Math.random` (see `spawner.ts`), so tests can pass a fixed value and get a predictable result.
+
 ### src/components/
 
 Create a component only when it's reused (`Button`, `ScoreBadge`) or represents a clear, nameable UI concept. Don't extract one-off pieces of a single screen too early — when unsure, ask.

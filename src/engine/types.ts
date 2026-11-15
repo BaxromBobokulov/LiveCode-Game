@@ -12,3 +12,13 @@ export type Entity = {
   /** True while standing on the ground. Set by applyVelocity, read by jump. */
   onGround: boolean
 }
+
+/** A ground obstacle the mascot must jump over. A plain axis-aligned box. */
+export type Obstacle = {
+  /** Left edge, in px. */
+  x: number
+  /** Top edge, in px. */
+  y: number
+  width: number
+  height: number
+}

@@ -18,3 +18,13 @@ export const SPAWN_INTERVAL_MIN = 0.9
 
 /** Longest gap between obstacle spawns, in seconds. */
 export const SPAWN_INTERVAL_MAX = 2.2
+
+/**
+ * Placeholder obstacle sizes, in px. Each stands in for a shape from the design
+ * until real sprites exist. All are sized so one jump clears them with room to spare.
+ */
+export const OBSTACLE_SIZES = [
+  { width: 20, height: 36 }, // small and thin, stands in for the semicolon
+  { width: 24, height: 64 }, // tall and thin, stands in for the brace
+  { width: 52, height: 32 }, // low and wide, stands in for the bug
+] as const

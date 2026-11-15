@@ -1,7 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { BASE_SPEED } from '../../constants/game'
+import { checkAnyCollision } from '../../engine/collision'
 import { applyGravity, applyVelocity, jump } from '../../engine/physics'
-import type { Entity } from '../../engine/types'
+import { advanceObstacles, pickSpawnInterval, spawnObstacle } from '../../engine/spawner'
+import type { Entity, Obstacle } from '../../engine/types'
+import { useGameStore } from '../../store/gameStore'
 
 const MASCOT_SIZE = 48
 const MASCOT_X = 80
@@ -49,10 +52,16 @@ export function GameCanvas() {
     }
     /** How far the ground pattern has scrolled, wrapped to one tick spacing. */
     let groundScroll = 0
+    let obstacles: Obstacle[] = []
+    let timeSinceLastSpawn = 0
+    let spawnInterval = pickSpawnInterval()
+    /** False once the mascot hits an obstacle: everything freezes in place. */
+    let running = true
+    useGameStore.getState().startGame()
 
     // --- Input ---
     const handleJump = () => {
-      mascot = jump(mascot)
+      if (running) mascot = jump(mascot)
     }
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code === 'Space' || event.code === 'ArrowUp') {
@@ -65,8 +74,29 @@ export function GameCanvas() {
     canvas.addEventListener('pointerdown', handleJump)
 
     const update = (dt: number) => {
-      mascot = applyVelocity(applyGravity(mascot, dt), dt, getGroundY())
-      groundScroll = (groundScroll + BASE_SPEED * dt) % TICK_SPACING
+      const groundY = getGroundY()
+      const distance = BASE_SPEED * dt
+
+      mascot = applyVelocity(applyGravity(mascot, dt), dt, groundY)
+      groundScroll = (groundScroll + distance) % TICK_SPACING
+
+      // Move existing obstacles, then maybe add a new one at the right edge.
+      obstacles = advanceObstacles(obstacles, distance, groundY)
+      timeSinceLastSpawn += dt
+      const spawned = spawnObstacle(timeSinceLastSpawn, spawnInterval, canvas.clientWidth, groundY)
+      if (spawned) {
+        obstacles.push(spawned)
+        timeSinceLastSpawn = 0
+        spawnInterval = pickSpawnInterval()
+      }
+
+      // Checked in the same frame the obstacles moved, so a hit stops the game
+      // before another frame of movement can happen.
+      if (checkAnyCollision(mascot, obstacles)) {
+        running = false
+        // TODO: pass the real score once scoring exists (Phase 3).
+        useGameStore.getState().endGame(0)
+      }
     }
 
     const draw = () => {
@@ -84,6 +114,12 @@ export function GameCanvas() {
         ctx.fillRect(x, groundY + 8, 2, TICK_LENGTH)
       }
 
+      // Placeholder obstacles
+      ctx.fillStyle = '#f87171'
+      for (const obstacle of obstacles) {
+        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height)
+      }
+
       // Placeholder mascot
       ctx.fillStyle = '#34d399'
       ctx.fillRect(mascot.x, mascot.y, mascot.width, mascot.height)
@@ -97,7 +133,9 @@ export function GameCanvas() {
       const dt = lastTime === null ? 0 : Math.min((time - lastTime) / 1000, MAX_DT)
       lastTime = time
 
-      update(dt)
+      // After a hit we keep drawing the frozen scene (so a resize still
+      // repaints it), but stop updating it.
+      if (running) update(dt)
       draw()
 
       frameId = requestAnimationFrame(frame)
