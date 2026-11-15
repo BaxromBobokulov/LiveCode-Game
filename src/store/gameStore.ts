@@ -1,0 +1,29 @@
+import { create } from 'zustand'
+import type { GameStatus } from '../engine/types'
+
+type GameStore = {
+  status: GameStatus
+  score: number
+  bestScore: number
+  startGame: () => void
+  endGame: (finalScore: number) => void
+  resetToMenu: () => void
+}
+
+export const useGameStore = create<GameStore>()((set) => ({
+  status: 'menu',
+  score: 0,
+  bestScore: 0,
+
+  startGame: () => set({ status: 'playing', score: 0 }),
+
+  endGame: (finalScore) =>
+    set((state) => ({
+      status: 'gameover',
+      score: finalScore,
+      // TODO: persist bestScore to localStorage
+      bestScore: Math.max(state.bestScore, finalScore),
+    })),
+
+  resetToMenu: () => set({ status: 'menu', score: 0 }),
+}))
