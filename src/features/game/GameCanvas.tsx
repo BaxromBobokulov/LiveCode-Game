@@ -16,6 +16,7 @@ import type { Entity, Obstacle, Platform } from '../../engine/types'
 import { useGameStore } from '../../store/gameStore'
 import { JUMP_FORCE } from '../../constants/game'
 import mascotSrc from '../../assets/start-mascot.webp'
+import bugSrc from '../../assets/bug-obstacle.webp'
 
 const MASCOT_SIZE = 48
 const MASCOT_X = 80
@@ -60,7 +61,17 @@ const MAX_TILT = 0.2
 /** How fast the shown tilt catches up with the target tilt, per second. Higher is snappier. */
 const TILT_EASE = 14
 
-type DecorKind = 'dot' | 'dash' | 'square' | 'chevron'
+// --- Obstacle sprite (drawing only; each obstacle's hitbox is unchanged) ---
+
+/**
+ * Loaded once per page, like the mascot. Only the low, wide obstacle size is a
+ * bug. The tall, thin sizes stay plain boxes until they get their own sprite
+ * (the brace), since the bug shape would leave most of their hitbox empty.
+ */
+const bugImage = new Image()
+bugImage.src = bugSrc
+
+type DecorKind ='dot' | 'dash' | 'square' | 'chevron'
 /**
  * A fixed pool of faint background shapes. Positions are fractions of the sky
  * area (x of the width, y of the space above the ground), so they fit any
@@ -115,8 +126,9 @@ export function GameCanvas() {
       canvas.width = Math.round(canvas.clientWidth * dpr)
       canvas.height = Math.round(canvas.clientHeight * dpr)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      // Resizing the buffer resets the context, so set this again. The sprite
-      // is shrunk a lot (768px wide down to about 70), which looks rough without it.
+      // Resizing the buffer resets the context, so set this again. The sprites
+      // are drawn smaller than their files (the mascot a lot: 768px wide down
+      // to about 70), which looks rough without it.
       ctx.imageSmoothingQuality = 'high'
       skyGradient = ctx.createLinearGradient(0, 0, 0, getGroundY())
       skyGradient.addColorStop(0, colors.skyTop)
@@ -377,13 +389,30 @@ export function GameCanvas() {
         ctx.fillRect(platform.x, top, platform.width, 1)
       }
 
-      // Placeholder obstacles
-      ctx.fillStyle = '#f87171'
-      for (const obstacle of obstacles) {
-        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height)
-      }
+      for (const obstacle of obstacles) drawObstacle(obstacle)
 
       drawMascot()
+    }
+
+    /**
+     * Draws one obstacle. A wide box (wider than tall) is the bug: the sprite is
+     * scaled to fit the box without stretching, centered across it, with its
+     * feet on the box's bottom edge (the ground). Tall boxes, and any box drawn
+     * before the image has loaded, are plain boxes.
+     */
+    const drawObstacle = (obstacle: Obstacle) => {
+      const isBug = obstacle.width > obstacle.height
+      if (!isBug || !bugImage.complete || bugImage.naturalWidth === 0) {
+        ctx.fillStyle = '#f87171'
+        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height)
+        return
+      }
+      const scale = Math.min(obstacle.width / bugImage.naturalWidth, obstacle.height / bugImage.naturalHeight)
+      const width = bugImage.naturalWidth * scale
+      const height = bugImage.naturalHeight * scale
+      const x = obstacle.x + (obstacle.width - width) / 2
+      const y = obstacle.y + obstacle.height - height
+      ctx.drawImage(bugImage, x, y, width, height)
     }
 
     /**
