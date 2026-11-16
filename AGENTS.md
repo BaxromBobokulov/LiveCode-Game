@@ -127,15 +127,23 @@ Randomness: an engine function that needs a random number takes a `random: () =>
 
 Create a component only when it's reused (`Button`, `ScoreBadge`) or represents a clear, nameable UI concept. Don't extract one-off pieces of a single screen too early — when unsure, ask.
 
+Design tokens: colors and the font are defined once in the `@theme` block of `src/index.css` (`canvas`, `surface`, `line`, `ink`, `muted`, `accent`, `accent-strong`, `gold`). Use them through Tailwind classes (`bg-canvas`, `text-accent`) instead of hardcoded hex values. Icons are small inline SVGs in `src/components/icons.tsx`; there is no icon library.
+
 ### src/store/
 
 One Zustand store (`gameStore`) holding only cross-cutting state the UI chrome needs: `status`, `score`, `bestScore`. It does **not** hold per-frame entity positions — those live inside `GameCanvas.tsx`'s local game-loop state (via a ref, not React state, so 60fps updates don't trigger re-renders). The store updates `score`/`status` at a lower frequency (e.g. on each point gained, and on game-over), not every frame.
 
 Run lifecycle: the store's `status` drives the canvas. `GameCanvas.tsx` subscribes to it, so `startGame()` resets everything and begins a fresh run, and `resetToMenu()` clears the scene and freezes it. UI screens start or leave a run by calling these store actions, never by reaching into the canvas.
 
+Pause: `pauseGame()` and `resumeGame()` switch between `playing` and `paused`. The canvas treats `paused` → `playing` as a continue (no reset), and any other switch to `playing` as a fresh run. Run time only grows inside the loop's update step, so paused time is never counted. `App.tsx` mounts `GameCanvas` + `Hud` only for `playing`/`paused`.
+
+Subscriptions: a component reads one value from the store with a selector (`useGameStore((state) => state.score)`), never the whole store. The live score changes about 10 times a second, so it gets its own tiny component (see `Hud.tsx`) and nothing else re-renders with it.
+
 ### Persistence
 
 Best score only, in `localStorage` under a single namespaced key (e.g. `livecode-game-bestscore`), read on mount and written whenever a run's score beats it. No accounts, no backend, no analytics beyond what LiveCode's existing PostHog setup already captures at the page level — matches LiveCode's current no-backend-for-this MVP approach.
+
+All `localStorage` access goes through `src/lib/storage.ts`, which never throws: a missing, corrupted or blocked value reads as 0, and a failed write is ignored.
 
 ---
 
@@ -146,6 +154,8 @@ Best score only, in `localStorage` under a single namespaced key (e.g. `livecode
 - **Difficulty curve:** scroll speed increases gradually with score/time, with a sane cap so it never becomes unplayable. Keep the curve in one place (`constants/game.ts` + `engine/spawner.ts`) so it's easy to tune.
 - **Scoring:** distance/time survived, no combo or bonus systems for v1 — keep it simple and legible.
 - **Controls:** Space / ↑ / tap-or-click to jump. Game pauses automatically when the tab loses focus.
+- **Leftover input:** players are still mashing jump when they die, so the Game Over screen must not auto-focus a button, and its buttons ignore input for the first 400 ms (`INPUT_LOCK_MS` in `GameOverScreen.tsx`). Tab still reaches them. Keep this when changing that screen.
+- **Quitting:** the pause panel offers Resume and Quit to Menu. A run the player quits is thrown away; its score does not count toward the best.
 - **Responsiveness:** canvas must scale to fit smaller/mobile viewports since students may open this on a phone during a break; touch tap must work as well as keyboard.
 
 ---

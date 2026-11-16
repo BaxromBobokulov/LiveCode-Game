@@ -1,9 +1,24 @@
 import { GameCanvas } from './features/game/GameCanvas'
+import { GameOverScreen } from './features/game/GameOverScreen'
+import { Hud } from './features/game/Hud'
+import { MainMenu } from './features/game/MainMenu'
+import { useGameStore } from './store/gameStore'
 
 function App() {
+  // Only the status is read here, so score updates never re-render the app.
+  const status = useGameStore((state) => state.status)
+  const inRun = status === 'playing' || status === 'paused'
+
   return (
-    <main className="h-full bg-slate-900">
-      <GameCanvas />
+    <main className="h-full bg-canvas font-sans text-ink">
+      {status === 'menu' && <MainMenu />}
+      {inRun && (
+        <div className="relative h-full">
+          <GameCanvas />
+          <Hud />
+        </div>
+      )}
+      {status === 'gameover' && <GameOverScreen />}
     </main>
   )
 }

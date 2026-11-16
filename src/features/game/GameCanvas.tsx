@@ -58,13 +58,15 @@ export function GameCanvas() {
     let spawnInterval = pickSpawnInterval()
     /** Seconds survived in the current run. Drives both the speed and the score. */
     let elapsedTime = 0
+    /** Timestamp of the previous frame in ms, or null when the next frame should not advance time. */
+    let lastTime: number | null = null
     /** The score we last sent to the store, so we only send it when it changes. */
     let publishedScore = 0
-    /** False while nothing should move: after a hit, or back on the menu. */
+    /** True only while the store says 'playing'. Paused, hit, or on the menu: nothing moves. */
     let running = false
 
     /** Puts everything back to the start of a run. */
-    const resetRun = (startRunning: boolean) => {
+    const resetRun = () => {
       mascot = createMascot()
       groundScroll = 0
       obstacles = []
@@ -72,26 +74,48 @@ export function GameCanvas() {
       spawnInterval = pickSpawnInterval()
       elapsedTime = 0
       publishedScore = 0
-      running = startRunning
     }
 
-    // The store decides when a run starts: startGame() begins a fresh run and
-    // resetToMenu() clears the scene. Later UI screens will call those actions.
+    // The store's status drives the canvas. startGame() begins a fresh run,
+    // resetToMenu() clears the scene, and pauseGame() / resumeGame() freeze and
+    // continue the current run without touching its state.
     const unsubscribe = useGameStore.subscribe((state, previous) => {
       if (state.status === previous.status) return
-      if (state.status === 'playing') resetRun(true)
-      if (state.status === 'menu') resetRun(false)
+      const isResume = state.status === 'playing' && previous.status === 'paused'
+      if ((state.status === 'playing' && !isResume) || state.status === 'menu') resetRun()
+      running = state.status === 'playing'
+      // Forget the last frame's timestamp, so the first frame after a pause
+      // (or a new start) advances the game by zero time instead of by the gap.
+      lastTime = null
     })
-    // There is no menu yet, so start a run right away.
-    resetRun(true)
-    useGameStore.getState().startGame()
+    // App only shows the canvas once a run has started, so pick up the
+    // status that is already there.
+    running = useGameStore.getState().status === 'playing'
+
+    // Pause automatically when the player looks away (other tab, other window,
+    // phone screen off). pauseGame() does nothing unless a run is playing.
+    const pauseGame = () => useGameStore.getState().pauseGame()
+    const handleVisibilityChange = () => {
+      if (document.hidden) pauseGame()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('blur', pauseGame)
 
     // --- Input ---
     const handleJump = () => {
       if (running) mascot = jump(mascot)
     }
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code === 'Space' || event.code === 'ArrowUp') {
+      if (event.repeat) return
+      if (event.code === 'Escape' || event.code === 'KeyP') {
+        const { status, pauseGame, resumeGame } = useGameStore.getState()
+        if (status === 'paused') resumeGame()
+        else pauseGame()
+        return
+      }
+      // Only while running: when paused, Space must still be able to press the
+      // focused Resume button.
+      if (running && (event.code === 'Space' || event.code === 'ArrowUp')) {
         event.preventDefault() // stop the page from scrolling
         handleJump()
       }
@@ -165,14 +189,14 @@ export function GameCanvas() {
 
     // --- Loop ---
     let frameId = 0
-    let lastTime: number | null = null
     const frame = (time: number) => {
       // rAF timestamps are in ms; the engine works in seconds.
       const dt = lastTime === null ? 0 : Math.min((time - lastTime) / 1000, MAX_DT)
       lastTime = time
 
-      // After a hit we keep drawing the frozen scene (so a resize still
-      // repaints it), but stop updating it.
+      // While paused we keep drawing the frozen scene (so a resize still
+      // repaints it), but stop updating it. elapsedTime only ever grows inside
+      // update(), so time spent paused is never counted.
       if (running) update(dt)
       draw()
 
@@ -184,6 +208,8 @@ export function GameCanvas() {
       cancelAnimationFrame(frameId)
       unsubscribe()
       resizeObserver.disconnect()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('blur', pauseGame)
       window.removeEventListener('keydown', handleKeyDown)
       canvas.removeEventListener('pointerdown', handleJump)
     }
