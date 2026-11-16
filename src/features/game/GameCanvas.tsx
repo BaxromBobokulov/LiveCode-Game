@@ -14,6 +14,36 @@ const TICK_LENGTH = 8
 /** Longest step we simulate in one frame, so a stalled tab doesn't cause a huge jump. */
 const MAX_DT = 0.05
 
+// --- Scene styling (drawing only; nothing here affects gameplay) ---
+
+/** Background shapes move at this fraction of the ground speed, so they feel far away. */
+const PARALLAX_RATIO = 0.2
+/** Height of the bright strip along the top of the ground platform, in px. */
+const GROUND_EDGE_HEIGHT = 6
+/** Extra room past the right edge, so a shape fully leaves the screen before it wraps around. */
+const DECOR_MARGIN = 40
+
+type DecorKind = 'dot' | 'dash' | 'square' | 'chevron'
+/**
+ * A fixed pool of faint background shapes. Positions are fractions of the sky
+ * area (x of the width, y of the space above the ground), so they fit any
+ * screen size. Created once; drawing never allocates new ones.
+ */
+const DECOR: readonly { kind: DecorKind; x: number; y: number; size: number; alpha: number }[] = [
+  { kind: 'dot', x: 0.06, y: 0.22, size: 3, alpha: 0.5 },
+  { kind: 'square', x: 0.18, y: 0.55, size: 10, alpha: 0.35 },
+  { kind: 'dash', x: 0.31, y: 0.12, size: 18, alpha: 0.35 },
+  { kind: 'chevron', x: 0.44, y: 0.4, size: 9, alpha: 0.3 },
+  { kind: 'dot', x: 0.55, y: 0.7, size: 2, alpha: 0.45 },
+  { kind: 'square', x: 0.67, y: 0.18, size: 7, alpha: 0.3 },
+  { kind: 'dash', x: 0.78, y: 0.6, size: 12, alpha: 0.3 },
+  { kind: 'dot', x: 0.9, y: 0.33, size: 3, alpha: 0.4 },
+]
+
+/** Reads a color token from the @theme block in index.css, with a fallback. */
+const readToken = (name: string, fallback: string) =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+
 /**
  * Owns the <canvas> element and the requestAnimationFrame loop.
  * Game state lives in local variables inside the effect (not React state),
@@ -29,6 +59,18 @@ export function GameCanvas() {
 
     const getGroundY = () => canvas.clientHeight - GROUND_OFFSET
 
+    // Scene colors, read once from the design tokens.
+    const colors = {
+      skyTop: '#050a1c', // a touch darker than the canvas token, for depth
+      skyBottom: readToken('--color-surface', '#101a3d'),
+      groundFill: readToken('--color-canvas', '#0a1128'),
+      groundTexture: readToken('--color-line', '#24346b'),
+      accent: readToken('--color-accent', '#3b82f6'),
+      decor: readToken('--color-muted', '#a5b4d4'),
+    }
+    /** The sky gradient depends on the canvas height, so it is rebuilt only on resize. */
+    let skyGradient: CanvasGradient | null = null
+
     // Keep the drawing buffer matched to the element's CSS size (and the
     // device pixel ratio) so shapes stay sharp when the container resizes.
     const resize = () => {
@@ -36,6 +78,9 @@ export function GameCanvas() {
       canvas.width = Math.round(canvas.clientWidth * dpr)
       canvas.height = Math.round(canvas.clientHeight * dpr)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      skyGradient = ctx.createLinearGradient(0, 0, 0, getGroundY())
+      skyGradient.addColorStop(0, colors.skyTop)
+      skyGradient.addColorStop(1, colors.skyBottom)
     }
     resize()
     const resizeObserver = new ResizeObserver(resize)
@@ -53,6 +98,8 @@ export function GameCanvas() {
     let mascot = createMascot()
     /** How far the ground pattern has scrolled, wrapped to one tick spacing. */
     let groundScroll = 0
+    /** How far the background shapes have scrolled. Drawing only, never read by game logic. */
+    let backgroundScroll = 0
     let obstacles: Obstacle[] = []
     let timeSinceLastSpawn = 0
     let spawnInterval = pickSpawnInterval()
@@ -69,6 +116,7 @@ export function GameCanvas() {
     const resetRun = () => {
       mascot = createMascot()
       groundScroll = 0
+      backgroundScroll = 0
       obstacles = []
       timeSinceLastSpawn = 0
       spawnInterval = pickSpawnInterval()
@@ -132,6 +180,8 @@ export function GameCanvas() {
 
       mascot = applyVelocity(applyGravity(mascot, dt), dt, groundY)
       groundScroll = (groundScroll + distance) % TICK_SPACING
+      // Not wrapped here: the draw step wraps it to the screen width, which can change on resize.
+      backgroundScroll += distance * PARALLAX_RATIO
 
       // Move existing obstacles, then maybe add a new one at the right edge.
       obstacles = advanceObstacles(obstacles, distance, groundY)
@@ -161,20 +211,67 @@ export function GameCanvas() {
       }
     }
 
+    /**
+     * Faint shapes drifting left behind the action. Each one wraps around a
+     * loop slightly wider than the screen, so it reappears on the right
+     * after leaving on the left.
+     */
+    const drawDecor = (width: number, groundY: number) => {
+      const loop = width + DECOR_MARGIN * 2
+      ctx.strokeStyle = colors.decor
+      ctx.fillStyle = colors.decor
+      ctx.lineWidth = 1.5
+      for (const item of DECOR) {
+        const offset = (item.x * loop - backgroundScroll) % loop
+        const x = (offset < 0 ? offset + loop : offset) - DECOR_MARGIN
+        const y = item.y * groundY
+        const s = item.size
+        ctx.globalAlpha = item.alpha
+        if (item.kind === 'dot') {
+          ctx.beginPath()
+          ctx.arc(x, y, s, 0, Math.PI * 2)
+          ctx.fill()
+        } else if (item.kind === 'dash') {
+          ctx.fillRect(x, y, s, 2)
+        } else if (item.kind === 'square') {
+          ctx.strokeRect(x, y, s, s)
+        } else {
+          // A small "<" angle bracket.
+          ctx.beginPath()
+          ctx.moveTo(x + s * 0.6, y - s / 2)
+          ctx.lineTo(x, y)
+          ctx.lineTo(x + s * 0.6, y + s / 2)
+          ctx.stroke()
+        }
+      }
+      ctx.globalAlpha = 1
+    }
+
     const draw = () => {
       const width = canvas.clientWidth
       const height = canvas.clientHeight
       const groundY = getGroundY()
 
-      ctx.clearRect(0, 0, width, height)
+      // Sky: dark navy gradient, a little lighter toward the ground.
+      ctx.fillStyle = skyGradient ?? colors.skyBottom
+      ctx.fillRect(0, 0, width, groundY)
 
-      // Ground line + tick marks scrolling left. Because groundScroll wraps at
-      // exactly one spacing, the pattern repeats seamlessly.
-      ctx.fillStyle = '#334155'
-      ctx.fillRect(0, groundY, width, 2)
+      drawDecor(width, groundY)
+
+      // Ground platform: a solid band from the ground line to the bottom.
+      ctx.fillStyle = colors.groundFill
+      ctx.fillRect(0, groundY, width, height - groundY)
+      // Tick marks scrolling left inside the band. Because groundScroll wraps
+      // at exactly one spacing, the pattern repeats seamlessly.
+      ctx.fillStyle = colors.groundTexture
       for (let x = -groundScroll; x < width; x += TICK_SPACING) {
-        ctx.fillRect(x, groundY + 8, 2, TICK_LENGTH)
+        ctx.fillRect(x, groundY + GROUND_EDGE_HEIGHT + 8, 2, TICK_LENGTH)
       }
+      // Bright accent strip along the top edge, with a thin lighter line on top.
+      ctx.fillStyle = colors.accent
+      ctx.fillRect(0, groundY, width, GROUND_EDGE_HEIGHT)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'
+      ctx.fillRect(0, groundY, width, 1)
 
       // Placeholder obstacles
       ctx.fillStyle = '#f87171'

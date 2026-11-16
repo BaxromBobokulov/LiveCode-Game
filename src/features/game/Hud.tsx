@@ -70,6 +70,9 @@ function PausedOverlay() {
         <h2 id="paused-title" className="text-3xl font-extrabold text-ink italic">
           Paused
         </h2>
+        <div>
+          <img src="/src/assets/pause-mascot.png" alt="" />
+        </div>
         <div className="flex w-full flex-col gap-3">
           <Button autoFocus onClick={resumeGame}>
             <PlayIcon />

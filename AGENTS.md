@@ -127,7 +127,7 @@ Randomness: an engine function that needs a random number takes a `random: () =>
 
 Create a component only when it's reused (`Button`, `ScoreBadge`) or represents a clear, nameable UI concept. Don't extract one-off pieces of a single screen too early — when unsure, ask.
 
-Design tokens: colors and the font are defined once in the `@theme` block of `src/index.css` (`canvas`, `surface`, `line`, `ink`, `muted`, `accent`, `accent-strong`, `gold`). Use them through Tailwind classes (`bg-canvas`, `text-accent`) instead of hardcoded hex values. Icons are small inline SVGs in `src/components/icons.tsx`; there is no icon library.
+Design tokens: colors and the font are defined once in the `@theme` block of `src/index.css` (`canvas`, `surface`, `line`, `ink`, `muted`, `accent`, `accent-strong`, `gold`). Use them through Tailwind classes (`bg-canvas`, `text-accent`) instead of hardcoded hex values. Canvas drawing can't use classes, so `GameCanvas.tsx` reads the same tokens once on mount (`readToken('--color-accent', fallback)`). Icons are small inline SVGs in `src/components/icons.tsx`; there is no icon library.
 
 ### src/store/
 

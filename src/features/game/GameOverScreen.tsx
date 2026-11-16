@@ -27,13 +27,14 @@ export function GameOverScreen() {
 
   return (
     <ScreenFrame>
-      <h1 className="mt-6 -rotate-3 text-5xl leading-none font-extrabold tracking-tight italic">
+      <h1 className="-rotate-3 text-5xl leading-none font-extrabold tracking-tight italic">
         <span className="text-ink">Game </span>
         <span className="text-accent">Over!</span>
       </h1>
 
-      <div className="flex flex-1 items-center justify-center py-8">
-        <MascotPlaceholder mood="hit" />
+      <div className="flex flex-1 items-center justify-center">
+        {/* <MascotPlaceholder mood="hit" /> */}
+        <img src="/src/assets/game-over-mascot.png" alt="" />
       </div>
 
       <div className="mb-6 flex flex-col items-center gap-1">

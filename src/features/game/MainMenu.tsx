@@ -23,8 +23,9 @@ export function MainMenu() {
         <span className="block text-accent">Runner</span>
       </h1>
 
-      <div className="flex flex-1 items-center justify-center py-10">
-        <MascotPlaceholder mood="happy" />
+      <div className="flex flex-1 items-center justify-center py-1">
+        {/* <MascotPlaceholder mood="happy" /> */}
+        <img src="/src/assets/start-mascot.png" alt="" className='h-auto'/>
       </div>
 
       <div className="flex w-full flex-col gap-5">
