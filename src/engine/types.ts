@@ -13,6 +13,19 @@ export type Entity = {
   onGround: boolean
 }
 
+/**
+ * A raised, flat section of ground the mascot can jump onto and run along.
+ * Stored as a height above the base ground line (not an absolute y), so it
+ * stays correct when the canvas resizes and the ground line moves.
+ */
+export type Platform = {
+  /** Left edge, in px. */
+  x: number
+  width: number
+  /** How far the platform's top sits above the base ground, in px (positive is up). */
+  rise: number
+}
+
 /** A ground obstacle the mascot must jump over. A plain axis-aligned box. */
 export type Obstacle = {
   /** Left edge, in px. */

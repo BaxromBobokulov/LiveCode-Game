@@ -3,12 +3,26 @@ import {
   BASE_SPEED,
   GRAVITY,
   JUMP_FORCE,
+  MAX_SPEED,
   OBSTACLE_SIZES,
+  PLATFORM_CHANCE,
+  PLATFORM_MIN_SCORE,
+  PLATFORM_RISE,
+  PLATFORM_WIDTH_MAX,
+  PLATFORM_WIDTH_MIN,
   SPAWN_INTERVAL_MAX,
   SPAWN_INTERVAL_MIN,
 } from '../constants/game'
-import { advanceObstacles, pickSpawnInterval, spawnObstacle } from './spawner'
-import type { Obstacle } from './types'
+import {
+  advanceObstacles,
+  advancePlatforms,
+  intervalAfterPlatform,
+  pickSpawnInterval,
+  pickSpawnKind,
+  spawnObstacle,
+  spawnPlatform,
+} from './spawner'
+import type { Obstacle, Platform } from './types'
 
 const GROUND_Y = 500
 const SPAWN_X = 800
@@ -283,4 +297,109 @@ describe('obstacle sizes are fair', () => {
       expect(timeAbove - timeUnder).toBeGreaterThan(0.1)
     },
   )
+})
+
+describe('pickSpawnKind (AC-1, AC-7)', () => {
+  it('never picks a platform before PLATFORM_MIN_SCORE', () => {
+    expect(pickSpawnKind(PLATFORM_MIN_SCORE - 1, false, fixed(0))).toBe('obstacle')
+    expect(pickSpawnKind(0, false, fixed(0))).toBe('obstacle')
+  })
+
+  it('can pick a platform once the score reaches PLATFORM_MIN_SCORE', () => {
+    expect(pickSpawnKind(PLATFORM_MIN_SCORE, false, fixed(0))).toBe('platform')
+  })
+
+  it('never picks two platforms in a row', () => {
+    expect(pickSpawnKind(PLATFORM_MIN_SCORE * 10, true, fixed(0))).toBe('obstacle')
+  })
+
+  it('picks a platform only below PLATFORM_CHANCE', () => {
+    expect(pickSpawnKind(PLATFORM_MIN_SCORE, false, fixed(PLATFORM_CHANCE - 0.001))).toBe('platform')
+    expect(pickSpawnKind(PLATFORM_MIN_SCORE, false, fixed(PLATFORM_CHANCE))).toBe('obstacle')
+  })
+})
+
+describe('spawnPlatform (AC-2)', () => {
+  it('starts at spawnX with the fixed rise', () => {
+    const platform = spawnPlatform(SPAWN_X, fixed(0.5))
+
+    expect(platform.x).toBe(SPAWN_X)
+    expect(platform.rise).toBe(PLATFORM_RISE)
+  })
+
+  it('uses PLATFORM_WIDTH_MIN for the lowest random value', () => {
+    expect(spawnPlatform(SPAWN_X, fixed(0)).width).toBe(PLATFORM_WIDTH_MIN)
+  })
+
+  it('always lands inside the width range with real randomness', () => {
+    for (let i = 0; i < 200; i++) {
+      const { width } = spawnPlatform(SPAWN_X)
+      expect(width).toBeGreaterThanOrEqual(PLATFORM_WIDTH_MIN)
+      expect(width).toBeLessThan(PLATFORM_WIDTH_MAX)
+    }
+  })
+})
+
+describe('advancePlatforms', () => {
+  const platform: Platform = { x: 400, width: 500, rise: PLATFORM_RISE }
+
+  it('moves every platform left by the distance', () => {
+    expect(advancePlatforms([platform], 15)).toEqual([{ ...platform, x: 385 }])
+  })
+
+  it('keeps a platform that is still partly on screen', () => {
+    expect(advancePlatforms([{ ...platform, x: -490 }], 5)).toHaveLength(1)
+  })
+
+  it('removes a platform once it is fully off the left edge', () => {
+    expect(advancePlatforms([{ ...platform, x: -490 }], 10)).toEqual([])
+  })
+
+  it('does not mutate the input list or its platforms', () => {
+    const list = [{ ...platform }]
+
+    advancePlatforms(list, 15)
+
+    expect(list).toEqual([platform])
+  })
+})
+
+describe('intervalAfterPlatform (AC-8, AC-9)', () => {
+  const platform: Platform = { x: SPAWN_X, width: 600, rise: PLATFORM_RISE }
+
+  it.each([BASE_SPEED, 420, MAX_SPEED])(
+    'waits at least the time to scroll the platform width plus SPAWN_INTERVAL_MIN (speed %i)',
+    (speed) => {
+      expect(intervalAfterPlatform(platform, speed, fixed(0))).toBeCloseTo(
+        platform.width / speed + SPAWN_INTERVAL_MIN,
+        10,
+      )
+      expect(intervalAfterPlatform(platform, speed)).toBeGreaterThanOrEqual(
+        platform.width / speed + SPAWN_INTERVAL_MIN,
+      )
+    },
+  )
+
+  it('leaves the next obstacle fully behind the platform', () => {
+    // Simulate the wait at a constant speed: the platform scrolls left while
+    // time passes, then an obstacle spawns at the right edge.
+    const speed = MAX_SPEED
+    const wait = intervalAfterPlatform(platform, speed, fixed(0))
+    const [moved] = advancePlatforms([platform], speed * wait)
+
+    expect(moved.x + moved.width).toBeLessThan(SPAWN_X)
+  })
+})
+
+describe('platforms are fair', () => {
+  const peak = JUMP_FORCE ** 2 / (2 * GRAVITY)
+  const jumpDistanceAtMaxSpeed = ((2 * JUMP_FORCE) / GRAVITY) * MAX_SPEED
+
+  it('PLATFORM_RISE is at most half the jump peak', () => {
+    expect(PLATFORM_RISE).toBeLessThanOrEqual(0.5 * peak)
+  })
+
+  it('PLATFORM_WIDTH_MIN is at least one full jump at MAX_SPEED', () => {
+    expect(PLATFORM_WIDTH_MIN).toBeGreaterThanOrEqual(jumpDistanceAtMaxSpeed)
+  })
 })

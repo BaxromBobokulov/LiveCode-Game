@@ -39,3 +39,29 @@ export const OBSTACLE_SIZES = [
   { width: 24, height: 64 }, // tall and thin, stands in for the brace
   { width: 52, height: 32 }, // low and wide, stands in for the bug
 ] as const
+
+// --- Raised platforms (spec 0001) ---
+// Fairness rules, both checked by tests in spawner.test.ts:
+// the rise is at most half the jump peak, and the narrowest platform is longer
+// than one full jump at MAX_SPEED (so jumping early still lands on top).
+
+/** Score a run must reach before any platform can spawn (about 15 s). */
+export const PLATFORM_MIN_SCORE = 150
+
+/** Chance that a spawn is a platform instead of an obstacle, once past the score gate. */
+export const PLATFORM_CHANCE = 0.15
+
+/** How high a platform's top sits above the base ground, in px. */
+export const PLATFORM_RISE = 48
+
+/** Narrowest platform, in px. */
+export const PLATFORM_WIDTH_MIN = 400
+
+/** Widest platform, in px. */
+export const PLATFORM_WIDTH_MAX = 720
+
+/**
+ * How far below a platform's top the mascot's feet can be and still step up
+ * onto it, in px. Deeper than this, touching the platform's side ends the run.
+ */
+export const STEP_TOLERANCE = 6

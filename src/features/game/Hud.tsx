@@ -1,5 +1,6 @@
 import { Button } from '../../components/Button'
 import { ArrowLeftIcon, PauseIcon, PlayIcon, TrophyIcon } from '../../components/icons'
+import pauseMascot from '../../assets/pause-mascot.webp'
 import { useGameStore } from '../../store/gameStore'
 
 // The score changes about 10 times a second. Each piece below subscribes only
@@ -71,7 +72,7 @@ function PausedOverlay() {
           Paused
         </h2>
         <div>
-          <img src="/src/assets/pause-mascot.png" alt="" />
+          <img src={pauseMascot} alt="" />
         </div>
         <div className="flex w-full flex-col gap-3">
           <Button autoFocus onClick={resumeGame}>

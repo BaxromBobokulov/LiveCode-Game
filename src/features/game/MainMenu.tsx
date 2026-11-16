@@ -1,8 +1,8 @@
 import { Button } from '../../components/Button'
 import { PlayIcon } from '../../components/icons'
 import { ScoreBadge } from '../../components/ScoreBadge'
+import startMascot from '../../assets/start-mascot.webp'
 import { useGameStore } from '../../store/gameStore'
-import { MascotPlaceholder } from './MascotPlaceholder'
 import { ScreenFrame } from './ScreenFrame'
 
 export function MainMenu() {
@@ -24,8 +24,7 @@ export function MainMenu() {
       </h1>
 
       <div className="flex flex-1 items-center justify-center py-1">
-        {/* <MascotPlaceholder mood="happy" /> */}
-        <img src="/src/assets/start-mascot.png" alt="" className='h-auto'/>
+        <img src={startMascot} alt="" className='h-auto'/>
       </div>
 
       <div className="flex w-full flex-col gap-5">

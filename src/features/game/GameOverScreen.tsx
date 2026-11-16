@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { Button } from '../../components/Button'
 import { ArrowLeftIcon, PlayIcon } from '../../components/icons'
 import { ScoreBadge } from '../../components/ScoreBadge'
+import gameOverMascot from '../../assets/game-over-mascot.webp'
 import { useGameStore } from '../../store/gameStore'
-import { MascotPlaceholder } from './MascotPlaceholder'
 import { ScreenFrame } from './ScreenFrame'
 
 /**
@@ -33,8 +33,7 @@ export function GameOverScreen() {
       </h1>
 
       <div className="flex flex-1 items-center justify-center">
-        {/* <MascotPlaceholder mood="hit" /> */}
-        <img src="/src/assets/game-over-mascot.png" alt="" />
+        <img src={gameOverMascot} alt="" />
       </div>
 
       <div className="mb-6 flex flex-col items-center gap-1">
