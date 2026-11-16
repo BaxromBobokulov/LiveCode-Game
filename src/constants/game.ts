@@ -13,6 +13,17 @@ export const BASE_SPEED = 300
 /** How much the scroll speed grows per second survived, in px/s². */
 export const SPEED_INCREASE_RATE = 5
 
+/**
+ * The fastest the scroll can ever get, in px/s. With the rate above, a run
+ * reaches it after (550 - 300) / 5 = 50 seconds and stays there.
+ * Chosen so that on a narrow phone (about 360px wide) an obstacle is still
+ * visible for roughly 0.4s before it reaches the mascot.
+ */
+export const MAX_SPEED = 550
+
+/** Points earned per second survived. A one minute run scores 600. */
+export const SCORE_RATE = 10
+
 /** Shortest gap between obstacle spawns, in seconds. */
 export const SPAWN_INTERVAL_MIN = 0.9
 

@@ -25,6 +25,17 @@ describe('gameStore', () => {
     expect(score).toBe(0)
   })
 
+  it('setScore() updates the live score without changing the status or best score', () => {
+    useGameStore.getState().startGame()
+
+    useGameStore.getState().setScore(37)
+
+    const { status, score, bestScore } = useGameStore.getState()
+    expect(status).toBe('playing')
+    expect(score).toBe(37)
+    expect(bestScore).toBe(0)
+  })
+
   it('endGame() switches to gameover and records the final score', () => {
     useGameStore.getState().startGame()
 

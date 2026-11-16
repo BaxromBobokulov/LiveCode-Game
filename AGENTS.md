@@ -131,6 +131,8 @@ Create a component only when it's reused (`Button`, `ScoreBadge`) or represents 
 
 One Zustand store (`gameStore`) holding only cross-cutting state the UI chrome needs: `status`, `score`, `bestScore`. It does **not** hold per-frame entity positions — those live inside `GameCanvas.tsx`'s local game-loop state (via a ref, not React state, so 60fps updates don't trigger re-renders). The store updates `score`/`status` at a lower frequency (e.g. on each point gained, and on game-over), not every frame.
 
+Run lifecycle: the store's `status` drives the canvas. `GameCanvas.tsx` subscribes to it, so `startGame()` resets everything and begins a fresh run, and `resetToMenu()` clears the scene and freezes it. UI screens start or leave a run by calling these store actions, never by reaching into the canvas.
+
 ### Persistence
 
 Best score only, in `localStorage` under a single namespaced key (e.g. `livecode-game-bestscore`), read on mount and written whenever a run's score beats it. No accounts, no backend, no analytics beyond what LiveCode's existing PostHog setup already captures at the page level — matches LiveCode's current no-backend-for-this MVP approach.

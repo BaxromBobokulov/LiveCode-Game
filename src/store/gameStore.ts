@@ -6,6 +6,8 @@ type GameStore = {
   score: number
   bestScore: number
   startGame: () => void
+  /** Updates the live score during a run. Called when a point is gained, not every frame. */
+  setScore: (score: number) => void
   endGame: (finalScore: number) => void
   resetToMenu: () => void
 }
@@ -16,6 +18,8 @@ export const useGameStore = create<GameStore>()((set) => ({
   bestScore: 0,
 
   startGame: () => set({ status: 'playing', score: 0 }),
+
+  setScore: (score) => set({ score }),
 
   endGame: (finalScore) =>
     set((state) => ({

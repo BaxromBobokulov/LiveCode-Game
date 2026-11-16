@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { BASE_SPEED } from '../../constants/game'
 import { checkAnyCollision } from '../../engine/collision'
 import { applyGravity, applyVelocity, jump } from '../../engine/physics'
+import { calculateScore, currentSpeed } from '../../engine/score'
 import { advanceObstacles, pickSpawnInterval, spawnObstacle } from '../../engine/spawner'
 import type { Entity, Obstacle } from '../../engine/types'
 import { useGameStore } from '../../store/gameStore'
@@ -42,21 +42,48 @@ export function GameCanvas() {
     resizeObserver.observe(canvas)
 
     // --- Game state ---
-    let mascot: Entity = {
+    const createMascot = (): Entity => ({
       x: MASCOT_X,
       y: getGroundY() - MASCOT_SIZE,
       vy: 0,
       width: MASCOT_SIZE,
       height: MASCOT_SIZE,
       onGround: true,
-    }
+    })
+    let mascot = createMascot()
     /** How far the ground pattern has scrolled, wrapped to one tick spacing. */
     let groundScroll = 0
     let obstacles: Obstacle[] = []
     let timeSinceLastSpawn = 0
     let spawnInterval = pickSpawnInterval()
-    /** False once the mascot hits an obstacle: everything freezes in place. */
-    let running = true
+    /** Seconds survived in the current run. Drives both the speed and the score. */
+    let elapsedTime = 0
+    /** The score we last sent to the store, so we only send it when it changes. */
+    let publishedScore = 0
+    /** False while nothing should move: after a hit, or back on the menu. */
+    let running = false
+
+    /** Puts everything back to the start of a run. */
+    const resetRun = (startRunning: boolean) => {
+      mascot = createMascot()
+      groundScroll = 0
+      obstacles = []
+      timeSinceLastSpawn = 0
+      spawnInterval = pickSpawnInterval()
+      elapsedTime = 0
+      publishedScore = 0
+      running = startRunning
+    }
+
+    // The store decides when a run starts: startGame() begins a fresh run and
+    // resetToMenu() clears the scene. Later UI screens will call those actions.
+    const unsubscribe = useGameStore.subscribe((state, previous) => {
+      if (state.status === previous.status) return
+      if (state.status === 'playing') resetRun(true)
+      if (state.status === 'menu') resetRun(false)
+    })
+    // There is no menu yet, so start a run right away.
+    resetRun(true)
     useGameStore.getState().startGame()
 
     // --- Input ---
@@ -75,7 +102,9 @@ export function GameCanvas() {
 
     const update = (dt: number) => {
       const groundY = getGroundY()
-      const distance = BASE_SPEED * dt
+      elapsedTime += dt
+      // The ground and the obstacles share one speed, which grows with time.
+      const distance = currentSpeed(elapsedTime) * dt
 
       mascot = applyVelocity(applyGravity(mascot, dt), dt, groundY)
       groundScroll = (groundScroll + distance) % TICK_SPACING
@@ -92,10 +121,19 @@ export function GameCanvas() {
 
       // Checked in the same frame the obstacles moved, so a hit stops the game
       // before another frame of movement can happen.
+      const score = calculateScore(elapsedTime)
       if (checkAnyCollision(mascot, obstacles)) {
         running = false
-        // TODO: pass the real score once scoring exists (Phase 3).
-        useGameStore.getState().endGame(0)
+        useGameStore.getState().endGame(score)
+        return
+      }
+
+      // The score is worked out every frame, but the store only hears about it
+      // when the whole number changes. That is SCORE_RATE updates per second at
+      // most, instead of one per frame, so the UI does not re-render needlessly.
+      if (score !== publishedScore) {
+        publishedScore = score
+        useGameStore.getState().setScore(score)
       }
     }
 
@@ -144,6 +182,7 @@ export function GameCanvas() {
 
     return () => {
       cancelAnimationFrame(frameId)
+      unsubscribe()
       resizeObserver.disconnect()
       window.removeEventListener('keydown', handleKeyDown)
       canvas.removeEventListener('pointerdown', handleJump)
