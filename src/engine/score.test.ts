@@ -3,6 +3,7 @@ import {
   BASE_SPEED,
   GRAVITY,
   JUMP_FORCE,
+  MASCOT_SIZE,
   MAX_SPEED,
   OBSTACLE_SIZES,
   SCORE_RATE,
@@ -266,7 +267,7 @@ describe('the curve stays fair at top speed', () => {
 
   it('cannot move an obstacle through the whole mascot in one capped frame', () => {
     const maxStep = MAX_SPEED * 0.05 // GameCanvas caps a frame at 0.05s
-    const mascotWidth = 48
+    const mascotWidth = MASCOT_SIZE
     const narrowest = Math.min(...OBSTACLE_SIZES.map((size) => size.width))
 
     expect(maxStep).toBeLessThan(mascotWidth + narrowest)

@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { OBSTACLE_SIZES } from '../constants/game'
+import { JUMP_FORCE, MASCOT_SIZE, OBSTACLE_SIZES, SCALE } from '../constants/game'
 import { checkAnyCollision, checkCollision } from './collision'
 import type { Entity, Obstacle } from './types'
 
-/** A 48px mascot with its top left corner at (100, 100). */
+/**
+ * A plain 48px box at (100, 100) for the pure geometry tests below. These test
+ * box overlap math only, so they do not follow SCALE; the "in play" block
+ * further down uses the real, scaled game sizes.
+ */
 const mascot: Entity = { x: 100, y: 100, vy: 0, width: 48, height: 48, onGround: true }
 
 const box = (x: number, y: number, width = 20, height = 20): Obstacle => ({ x, y, width, height })
@@ -99,8 +103,16 @@ describe('checkCollision: touching without overlapping', () => {
 
 describe('checkCollision: in play', () => {
   const GROUND_Y = 500
-  /** A mascot standing on the ground at x 80..128, as in the game. */
-  const standing: Entity = { ...mascot, x: 80, y: GROUND_Y - 48 }
+  /** A base (SCALE 1) length or speed in px, at the game's current SCALE. */
+  const px = (base: number) => base * SCALE
+  /** A mascot standing on the ground at x px(80)..px(128), as in the game. */
+  const standing: Entity = {
+    ...mascot,
+    x: px(80),
+    y: GROUND_Y - MASCOT_SIZE,
+    width: MASCOT_SIZE,
+    height: MASCOT_SIZE,
+  }
   const onGround = (x: number, width: number, height: number): Obstacle => ({
     x,
     y: GROUND_Y - height,
@@ -111,46 +123,46 @@ describe('checkCollision: in play', () => {
   it.each(OBSTACLE_SIZES.map((size) => [size.width, size.height] as const))(
     'a standing mascot is hit by a %ix%i obstacle that reaches it',
     (width, height) => {
-      expect(checkCollision(standing, onGround(120, width, height))).toBe(true)
+      expect(checkCollision(standing, onGround(px(120), width, height))).toBe(true)
     },
   )
 
   it.each(OBSTACLE_SIZES.map((size) => [size.width, size.height] as const))(
     'a standing mascot is not hit by a %ix%i obstacle still ahead of it',
     (width, height) => {
-      expect(checkCollision(standing, onGround(128, width, height))).toBe(false)
-      expect(checkCollision(standing, onGround(400, width, height))).toBe(false)
+      expect(checkCollision(standing, onGround(px(128), width, height))).toBe(false)
+      expect(checkCollision(standing, onGround(px(400), width, height))).toBe(false)
     },
   )
 
   it.each(OBSTACLE_SIZES.map((size) => [size.width, size.height] as const))(
     'a mascot jumping higher than a %ix%i obstacle passes over it',
     (width, height) => {
-      const jumping: Entity = { ...standing, y: GROUND_Y - 48 - height - 1, onGround: false }
+      const jumping: Entity = { ...standing, y: GROUND_Y - MASCOT_SIZE - height - 1, onGround: false }
 
-      expect(checkCollision(jumping, onGround(90, width, height))).toBe(false)
+      expect(checkCollision(jumping, onGround(px(90), width, height))).toBe(false)
     },
   )
 
   it.each(OBSTACLE_SIZES.map((size) => [size.width, size.height] as const))(
     'a mascot that has not jumped high enough clips a %ix%i obstacle',
     (width, height) => {
-      const tooLow: Entity = { ...standing, y: GROUND_Y - 48 - height + 1, onGround: false }
+      const tooLow: Entity = { ...standing, y: GROUND_Y - MASCOT_SIZE - height + 1, onGround: false }
 
-      expect(checkCollision(tooLow, onGround(90, width, height))).toBe(true)
+      expect(checkCollision(tooLow, onGround(px(90), width, height))).toBe(true)
     },
   )
 
   it('gives the same answer whatever the mascot vy and onGround are', () => {
-    const obstacle = onGround(120, 20, 36)
+    const obstacle = onGround(px(120), px(36), px(33)) // the brace size
 
-    expect(checkCollision({ ...standing, vy: -800, onGround: false }, obstacle)).toBe(true)
-    expect(checkCollision({ ...standing, vy: 900, onGround: false }, obstacle)).toBe(true)
+    expect(checkCollision({ ...standing, vy: -JUMP_FORCE, onGround: false }, obstacle)).toBe(true)
+    expect(checkCollision({ ...standing, vy: px(900), onGround: false }, obstacle)).toBe(true)
   })
 
   it('does not mutate the mascot or the obstacle', () => {
     const mascotCopy = { ...standing }
-    const obstacle = onGround(120, 20, 36)
+    const obstacle = onGround(px(120), px(36), px(33)) // the brace size
     const obstacleCopy = { ...obstacle }
 
     checkCollision(standing, obstacle)

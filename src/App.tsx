@@ -13,6 +13,8 @@ function App() {
     <main className="h-full bg-canvas font-sans text-ink">
       {status === 'menu' && <MainMenu />}
       {inRun && (
+        // The run fills the whole viewport. The game world is drawn at SCALE
+        // (constants/game.ts), so it reads well on a large screen.
         <div className="relative h-full">
           <GameCanvas />
           <Hud />

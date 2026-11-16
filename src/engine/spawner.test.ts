@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   BASE_SPEED,
+  BUG_MIN_RATIO,
   GRAVITY,
   JUMP_FORCE,
+  MASCOT_SIZE,
   MAX_SPEED,
   OBSTACLE_SIZES,
   PLATFORM_CHANCE,
@@ -10,6 +12,7 @@ import {
   PLATFORM_RISE,
   PLATFORM_WIDTH_MAX,
   PLATFORM_WIDTH_MIN,
+  SCALE,
   SPAWN_INTERVAL_MAX,
   SPAWN_INTERVAL_MIN,
 } from '../constants/game'
@@ -25,7 +28,10 @@ import {
 import type { Obstacle, Platform } from './types'
 
 const GROUND_Y = 500
-const SPAWN_X = 800
+const SPAWN_X = 800 * SCALE
+
+/** A base (SCALE 1) length in px, at the game's current SCALE. */
+const px = (base: number) => base * SCALE
 
 /** A stand-in for Math.random that always returns the same value. */
 const fixed = (value: number) => () => value
@@ -216,87 +222,113 @@ describe('spawned obstacle shape', () => {
 })
 
 describe('advanceObstacles', () => {
-  const obstacle: Obstacle = { x: 400, y: GROUND_Y - 36, width: 20, height: 36 }
+  const [brace, bug] = OBSTACLE_SIZES
+  const obstacle: Obstacle = { x: px(400), y: GROUND_Y - brace.height, ...brace }
 
   it('returns an empty list for an empty list', () => {
-    expect(advanceObstacles([], 15, GROUND_Y)).toEqual([])
+    expect(advanceObstacles([], px(15), GROUND_Y)).toEqual([])
   })
 
   it('keeps the order and the sizes of the obstacles', () => {
-    const wide: Obstacle = { x: 700, y: GROUND_Y - 32, width: 52, height: 32 }
+    const wide: Obstacle = { x: px(700), y: GROUND_Y - bug.height, ...bug }
 
-    const next = advanceObstacles([obstacle, wide], 15, GROUND_Y)
+    const next = advanceObstacles([obstacle, wide], px(15), GROUND_Y)
 
     expect(next.map((o) => [o.width, o.height])).toEqual([
-      [20, 36],
-      [52, 32],
+      [px(36), px(33)],
+      [px(50), px(42)],
     ])
   })
 
   it('removes an obstacle whose right edge lands exactly on the left edge of the screen', () => {
-    const leaving = { ...obstacle, x: -5 } // right edge at 15
+    const leaving = { ...obstacle, x: px(15) - obstacle.width } // right edge at px(15)
 
-    expect(advanceObstacles([leaving], 15, GROUND_Y)).toEqual([])
+    expect(advanceObstacles([leaving], px(15), GROUND_Y)).toEqual([])
   })
 
   it('removes only the obstacles that left and keeps the rest', () => {
-    const gone = { ...obstacle, x: -19 }
-    const staying = { ...obstacle, x: 300 }
+    const gone = { ...obstacle, x: px(1) - obstacle.width } // right edge at px(1)
+    const staying = { ...obstacle, x: px(300) }
 
-    const next = advanceObstacles([gone, staying], 10, GROUND_Y)
+    const next = advanceObstacles([gone, staying], px(10), GROUND_Y)
 
-    expect(next).toEqual([{ ...staying, x: 290 }])
+    expect(next).toEqual([{ ...staying, x: px(290) }])
   })
 
   it('moves every obstacle left by the distance', () => {
-    const next = advanceObstacles([obstacle, { ...obstacle, x: 700 }], 15, GROUND_Y)
+    const next = advanceObstacles([obstacle, { ...obstacle, x: px(700) }], px(15), GROUND_Y)
 
-    expect(next.map((o) => o.x)).toEqual([385, 685])
+    expect(next.map((o) => o.x)).toEqual([px(385), px(685)])
   })
 
   it('keeps an obstacle that is still partly on screen', () => {
-    const leaving = { ...obstacle, x: -5 }
+    const leaving = { ...obstacle, x: px(15) - obstacle.width } // right edge at px(15)
 
-    expect(advanceObstacles([leaving], 10, GROUND_Y)).toHaveLength(1)
+    expect(advanceObstacles([leaving], px(10), GROUND_Y)).toHaveLength(1)
   })
 
   it('removes an obstacle once it is fully off the left edge', () => {
-    const leaving = { ...obstacle, x: -5 }
+    const leaving = { ...obstacle, x: px(15) - obstacle.width } // right edge at px(15)
 
-    expect(advanceObstacles([leaving], 15, GROUND_Y)).toEqual([])
+    expect(advanceObstacles([leaving], px(15), GROUND_Y)).toEqual([])
   })
 
   it('keeps obstacles standing on the ground when the ground line moves', () => {
-    const [moved] = advanceObstacles([obstacle], 0, GROUND_Y + 100)
+    const [moved] = advanceObstacles([obstacle], 0, GROUND_Y + px(100))
 
-    expect(moved.y + moved.height).toBe(GROUND_Y + 100)
+    expect(moved.y + moved.height).toBe(GROUND_Y + px(100))
   })
 
   it('does not mutate the input list or its obstacles', () => {
     const list = [{ ...obstacle }]
 
-    advanceObstacles(list, 15, GROUND_Y)
+    advanceObstacles(list, px(15), GROUND_Y)
 
     expect(list).toEqual([obstacle])
   })
 })
 
 describe('obstacle sizes are fair', () => {
-  it.each(OBSTACLE_SIZES.map((size) => [size.width, size.height] as const))(
-    'a %ix%i obstacle can be cleared by one jump of a 48px mascot',
-    (width, height) => {
-      const mascotWidth = 48
-      // How long the mascot's feet stay above the obstacle's top during a jump.
-      const peak = JUMP_FORCE ** 2 / (2 * GRAVITY)
-      const timeAbove = 2 * Math.sqrt((2 * (peak - height)) / GRAVITY)
-      // How long the obstacle spends under the mascot at base speed.
-      const timeUnder = (mascotWidth + width) / BASE_SPEED
-
-      expect(height).toBeLessThan(peak)
-      // Ask for at least 0.1s of slack so the timing is forgiving.
-      expect(timeAbove - timeUnder).toBeGreaterThan(0.1)
-    },
+  // Every size at both ends of the speed range. The slowest speed is the
+  // tighter case: the obstacle stays under the mascot longest.
+  const cases = OBSTACLE_SIZES.flatMap((size) =>
+    [BASE_SPEED, MAX_SPEED].map((speed) => [size.width, size.height, speed] as const),
   )
+
+  it.each(cases)('a %ix%i obstacle can be cleared by one jump of the mascot at %i px/s', (width, height, speed) => {
+    // How long the mascot's feet stay above the obstacle's top during a jump.
+    const peak = JUMP_FORCE ** 2 / (2 * GRAVITY)
+    const timeAbove = 2 * Math.sqrt((2 * (peak - height)) / GRAVITY)
+    // How long the obstacle spends under the mascot at this speed.
+    const timeUnder = (MASCOT_SIZE + width) / speed
+
+    expect(height).toBeLessThan(peak)
+    // Ask for at least 0.1s of slack so the timing is forgiving.
+    expect(timeAbove - timeUnder).toBeGreaterThan(0.1)
+  })
+
+  it('only has the two sprited sizes, brace and bug (no plain box)', () => {
+    expect(OBSTACLE_SIZES).toHaveLength(2)
+  })
+
+  it('keeps every box close to its sprite shape, so no part of a hitbox is invisible', () => {
+    // width / height of the image files (brace-obstacle.webp, bug-obstacle.webp).
+    const spriteAspects = [78 / 72, 240 / 204]
+
+    OBSTACLE_SIZES.forEach((size, index) => {
+      const aspect = size.width / size.height
+      // Drawn "contain" style: the share of the box the image covers.
+      const covered = Math.min(aspect, spriteAspects[index]) / Math.max(aspect, spriteAspects[index])
+      expect(covered).toBeGreaterThan(0.95)
+    })
+  })
+
+  it('draws the brace box as the brace and the bug box as the bug (BUG_MIN_RATIO)', () => {
+    const [brace, bug] = OBSTACLE_SIZES
+
+    expect(brace.width / brace.height).toBeLessThan(BUG_MIN_RATIO)
+    expect(bug.width / bug.height).toBeGreaterThanOrEqual(BUG_MIN_RATIO)
+  })
 })
 
 describe('pickSpawnKind (AC-1, AC-7)', () => {
@@ -341,33 +373,33 @@ describe('spawnPlatform (AC-2)', () => {
 })
 
 describe('advancePlatforms', () => {
-  const platform: Platform = { x: 400, width: 500, rise: PLATFORM_RISE }
+  const platform: Platform = { x: px(400), width: px(500), rise: PLATFORM_RISE }
 
   it('moves every platform left by the distance', () => {
-    expect(advancePlatforms([platform], 15)).toEqual([{ ...platform, x: 385 }])
+    expect(advancePlatforms([platform], px(15))).toEqual([{ ...platform, x: px(385) }])
   })
 
   it('keeps a platform that is still partly on screen', () => {
-    expect(advancePlatforms([{ ...platform, x: -490 }], 5)).toHaveLength(1)
+    expect(advancePlatforms([{ ...platform, x: px(-490) }], px(5))).toHaveLength(1)
   })
 
   it('removes a platform once it is fully off the left edge', () => {
-    expect(advancePlatforms([{ ...platform, x: -490 }], 10)).toEqual([])
+    expect(advancePlatforms([{ ...platform, x: px(-490) }], px(10))).toEqual([])
   })
 
   it('does not mutate the input list or its platforms', () => {
     const list = [{ ...platform }]
 
-    advancePlatforms(list, 15)
+    advancePlatforms(list, px(15))
 
     expect(list).toEqual([platform])
   })
 })
 
 describe('intervalAfterPlatform (AC-8, AC-9)', () => {
-  const platform: Platform = { x: SPAWN_X, width: 600, rise: PLATFORM_RISE }
+  const platform: Platform = { x: SPAWN_X, width: px(600), rise: PLATFORM_RISE }
 
-  it.each([BASE_SPEED, 420, MAX_SPEED])(
+  it.each([BASE_SPEED, px(420), MAX_SPEED])(
     'waits at least the time to scroll the platform width plus SPAWN_INTERVAL_MIN (speed %i)',
     (speed) => {
       expect(intervalAfterPlatform(platform, speed, fixed(0))).toBeCloseTo(

@@ -12,17 +12,33 @@ import {
   spawnPlatform,
 } from '../../engine/spawner'
 import { floorY, platformTop, platformWalls } from '../../engine/terrain'
+import { drawScale } from '../../engine/viewport'
 import type { Entity, Obstacle, Platform } from '../../engine/types'
 import { useGameStore } from '../../store/gameStore'
-import { JUMP_FORCE } from '../../constants/game'
+import { BUG_MIN_RATIO, JUMP_FORCE, MASCOT_SIZE, MASCOT_X, SCALE } from '../../constants/game'
 import mascotSrc from '../../assets/start-mascot.webp'
 import bugSrc from '../../assets/bug-obstacle.webp'
+import braceSrc from '../../assets/brace-obstacle.webp'
+import cloudSrc from '../../assets/cloud.webp'
 
-const MASCOT_SIZE = 48
-const MASCOT_X = 80
-const GROUND_OFFSET = 64
-const TICK_SPACING = 40
-const TICK_LENGTH = 8
+// Every px value below is in world px: a base value times SCALE (see
+// constants/game.ts), so the whole scene grows together. Rates in seconds are
+// not scaled. How big a world px is on screen is drawScale's call (engine/viewport.ts).
+/**
+ * The ground band (from the ground line to the bottom of the canvas) takes this
+ * share of the canvas height, like the mockup, so a tall phone screen is not
+ * mostly empty sky. Layout only: physics just receives the resulting groundY.
+ */
+const GROUND_SHARE = 0.25
+/** The ground band is never thinner than this, in px. */
+const GROUND_MIN_HEIGHT = 64 * SCALE
+/**
+ * Sky we always keep above the ground line, in px, so the score bar plus a
+ * jump from the top of a platform still fit on a short (landscape phone) screen.
+ */
+const SKY_MIN_HEIGHT = 300 * SCALE
+const TICK_SPACING = 40 * SCALE
+const TICK_LENGTH = 8 * SCALE
 /** Longest step we simulate in one frame, so a stalled tab doesn't cause a huge jump. */
 const MAX_DT = 0.05
 
@@ -31,9 +47,9 @@ const MAX_DT = 0.05
 /** Background shapes move at this fraction of the ground speed, so they feel far away. */
 const PARALLAX_RATIO = 0.2
 /** Height of the bright strip along the top of the ground platform, in px. */
-const GROUND_EDGE_HEIGHT = 6
+const GROUND_EDGE_HEIGHT = 6 * SCALE
 /** Extra room past the right edge, so a shape fully leaves the screen before it wraps around. */
-const DECOR_MARGIN = 40
+const DECOR_MARGIN = 40 * SCALE
 
 // --- Mascot sprite (drawing only; the hitbox is still the MASCOT_SIZE square) ---
 
@@ -45,7 +61,7 @@ const mascotImage = new Image()
 mascotImage.src = mascotSrc
 
 /** Drawn height of the whole image, in px. A bit taller than the hitbox, since the image has empty space around the body. */
-const SPRITE_HEIGHT = 62
+const SPRITE_HEIGHT = 62 * SCALE
 /**
  * Where the body's middle sits across the image, as a fraction of its width.
  * The speed lines on the left make the image wider than the body, so the
@@ -53,7 +69,7 @@ const SPRITE_HEIGHT = 62
  */
 const SPRITE_BODY_CENTER_X = 0.54
 /** How high the running bob lifts the mascot, in px. It only goes up, so the feet never sink into the ground. */
-const BOB_HEIGHT = 3
+const BOB_HEIGHT = 3 * SCALE
 /** Running bobs per second. */
 const BOB_RATE = 5
 /** Largest tilt during a jump, in radians (about 12 degrees). */
@@ -61,15 +77,38 @@ const MAX_TILT = 0.2
 /** How fast the shown tilt catches up with the target tilt, per second. Higher is snappier. */
 const TILT_EASE = 14
 
-// --- Obstacle sprite (drawing only; each obstacle's hitbox is unchanged) ---
+// --- Obstacle sprites (drawing only; each obstacle's hitbox is unchanged) ---
 
 /**
- * Loaded once per page, like the mascot. Only the low, wide obstacle size is a
- * bug. The tall, thin sizes stay plain boxes until they get their own sprite
- * (the brace), since the bug shape would leave most of their hitbox empty.
+ * Loaded once per page, like the mascot. Which sprite a box gets depends on
+ * its shape (see OBSTACLE_SIZES): the clearly wide box is the bug, the near
+ * square one is the brace.
  */
 const bugImage = new Image()
 bugImage.src = bugSrc
+const braceImage = new Image()
+braceImage.src = braceSrc
+
+// --- Clouds (drawing only) ---
+
+const cloudImage = new Image()
+cloudImage.src = cloudSrc
+
+/** Extra room past each edge for clouds, so the widest one fully leaves the screen before it wraps. */
+const CLOUD_MARGIN = 130 * SCALE
+
+/**
+ * A fixed pool of clouds, drifting with the background shapes. Same units as
+ * DECOR: x is a fraction of the loop, y a fraction of the sky height (the
+ * cloud's top edge). width is in px; height follows the image. Kept faint and
+ * in the upper sky, so they never compete with obstacles near the ground.
+ */
+const CLOUDS: readonly { x: number; y: number; width: number; alpha: number }[] = [
+  { x: 0.1, y: 0.08, width: 110 * SCALE, alpha: 0.22 },
+  { x: 0.36, y: 0.3, width: 84 * SCALE, alpha: 0.16 },
+  { x: 0.6, y: 0.05, width: 96 * SCALE, alpha: 0.2 },
+  { x: 0.84, y: 0.24, width: 120 * SCALE, alpha: 0.18 },
+]
 
 type DecorKind ='dot' | 'dash' | 'square' | 'chevron'
 /**
@@ -105,7 +144,19 @@ export function GameCanvas() {
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
 
-    const getGroundY = () => canvas.clientHeight - GROUND_OFFSET
+    // The play area in world px. On a small screen the world is drawn at
+    // 1 / SCALE, so it is SCALE times bigger than the CSS size. Worked out fresh
+    // from the current size on every call (never cached), so the world size,
+    // the ground line and the drawing transform always agree, even mid resize.
+    const viewScale = () => drawScale(canvas.clientWidth, canvas.clientHeight)
+    const worldWidth = () => canvas.clientWidth / viewScale()
+    const worldHeight = () => canvas.clientHeight / viewScale()
+
+    const getGroundY = () => {
+      const height = worldHeight()
+      const band = Math.max(GROUND_MIN_HEIGHT, Math.min(height * GROUND_SHARE, height - SKY_MIN_HEIGHT))
+      return height - band
+    }
 
     // Scene colors, read once from the design tokens.
     const colors = {
@@ -125,7 +176,8 @@ export function GameCanvas() {
       const dpr = window.devicePixelRatio || 1
       canvas.width = Math.round(canvas.clientWidth * dpr)
       canvas.height = Math.round(canvas.clientHeight * dpr)
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      // The transform itself (dpr times the view scale) is set at the start of
+      // every draw, so it always matches the current size.
       // Resizing the buffer resets the context, so set this again. The sprites
       // are drawn smaller than their files (the mascot a lot: 768px wide down
       // to about 70), which looks rough without it.
@@ -267,7 +319,7 @@ export function GameCanvas() {
       // Maybe add a platform or an obstacle at the right edge.
       timeSinceLastSpawn += dt
       if (timeSinceLastSpawn >= spawnInterval) {
-        const spawnX = canvas.clientWidth
+        const spawnX = worldWidth()
         if (pickSpawnKind(score, lastSpawnWasPlatform) === 'platform') {
           const platform = spawnPlatform(spawnX)
           platforms.push(platform)
@@ -320,19 +372,19 @@ export function GameCanvas() {
       const loop = width + DECOR_MARGIN * 2
       ctx.strokeStyle = colors.decor
       ctx.fillStyle = colors.decor
-      ctx.lineWidth = 1.5
+      ctx.lineWidth = 1.5 * SCALE
       for (const item of DECOR) {
         const offset = (item.x * loop - backgroundScroll) % loop
         const x = (offset < 0 ? offset + loop : offset) - DECOR_MARGIN
         const y = item.y * groundY
-        const s = item.size
+        const s = item.size * SCALE
         ctx.globalAlpha = item.alpha
         if (item.kind === 'dot') {
           ctx.beginPath()
           ctx.arc(x, y, s, 0, Math.PI * 2)
           ctx.fill()
         } else if (item.kind === 'dash') {
-          ctx.fillRect(x, y, s, 2)
+          ctx.fillRect(x, y, s, 2 * SCALE)
         } else if (item.kind === 'square') {
           ctx.strokeRect(x, y, s, s)
         } else {
@@ -347,15 +399,37 @@ export function GameCanvas() {
       ctx.globalAlpha = 1
     }
 
+    /**
+     * Clouds behind the background shapes. They use the same backgroundScroll,
+     * so they drift at the same parallax speed, and wrap the same way (with a
+     * wider margin, since a cloud is much wider than a dot).
+     */
+    const drawClouds = (width: number, groundY: number) => {
+      if (!cloudImage.complete || cloudImage.naturalWidth === 0) return // still loading
+      const loop = width + CLOUD_MARGIN * 2
+      const aspect = cloudImage.naturalHeight / cloudImage.naturalWidth
+      for (const cloud of CLOUDS) {
+        const offset = (cloud.x * loop - backgroundScroll) % loop
+        const x = (offset < 0 ? offset + loop : offset) - CLOUD_MARGIN
+        ctx.globalAlpha = cloud.alpha
+        ctx.drawImage(cloudImage, x, cloud.y * groundY, cloud.width, cloud.width * aspect)
+      }
+      ctx.globalAlpha = 1
+    }
+
     const draw = () => {
-      const width = canvas.clientWidth
-      const height = canvas.clientHeight
+      // Draw in world px: one world px is dpr × viewScale buffer pixels.
+      const scale = (window.devicePixelRatio || 1) * viewScale()
+      ctx.setTransform(scale, 0, 0, scale, 0, 0)
+      const width = worldWidth()
+      const height = worldHeight()
       const groundY = getGroundY()
 
       // Sky: dark navy gradient, a little lighter toward the ground.
       ctx.fillStyle = skyGradient ?? colors.skyBottom
       ctx.fillRect(0, 0, width, groundY)
 
+      drawClouds(width, groundY)
       drawDecor(width, groundY)
 
       // Ground platform: a solid band from the ground line to the bottom.
@@ -365,7 +439,7 @@ export function GameCanvas() {
       // at exactly one spacing, the pattern repeats seamlessly.
       ctx.fillStyle = colors.groundTexture
       for (let x = -groundScroll; x < width; x += TICK_SPACING) {
-        ctx.fillRect(x, groundY + GROUND_EDGE_HEIGHT + 8, 2, TICK_LENGTH)
+        ctx.fillRect(x, groundY + GROUND_EDGE_HEIGHT + 8 * SCALE, 2 * SCALE, TICK_LENGTH)
       }
       // Bright accent strip along the top edge, with a thin lighter line on top.
       ctx.fillStyle = colors.accent
@@ -381,8 +455,8 @@ export function GameCanvas() {
         ctx.fillRect(platform.x, top, platform.width, platform.rise)
         // Thin outline on the sides, so the step stands out against the sky.
         ctx.fillStyle = colors.groundTexture
-        ctx.fillRect(platform.x, top, 2, platform.rise)
-        ctx.fillRect(platform.x + platform.width - 2, top, 2, platform.rise)
+        ctx.fillRect(platform.x, top, 2 * SCALE, platform.rise)
+        ctx.fillRect(platform.x + platform.width - 2 * SCALE, top, 2 * SCALE, platform.rise)
         ctx.fillStyle = colors.accent
         ctx.fillRect(platform.x, top, platform.width, GROUND_EDGE_HEIGHT)
         ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'
@@ -394,25 +468,29 @@ export function GameCanvas() {
       drawMascot()
     }
 
+    /** Picks the sprite for a box by its shape (see BUG_MIN_RATIO). */
+    const obstacleSprite = (obstacle: Obstacle) =>
+      obstacle.width / obstacle.height >= BUG_MIN_RATIO ? bugImage : braceImage
+
     /**
-     * Draws one obstacle. A wide box (wider than tall) is the bug: the sprite is
-     * scaled to fit the box without stretching, centered across it, with its
-     * feet on the box's bottom edge (the ground). Tall boxes, and any box drawn
-     * before the image has loaded, are plain boxes.
+     * Draws one obstacle. The sprite is scaled to fit the box without
+     * stretching, centered across it, with its bottom on the box's bottom edge
+     * (the ground). A box drawn before its image has loaded (only possible in
+     * the first moments of a page) is a plain box.
      */
     const drawObstacle = (obstacle: Obstacle) => {
-      const isBug = obstacle.width > obstacle.height
-      if (!isBug || !bugImage.complete || bugImage.naturalWidth === 0) {
+      const image = obstacleSprite(obstacle)
+      if (!image.complete || image.naturalWidth === 0) {
         ctx.fillStyle = '#f87171'
         ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height)
         return
       }
-      const scale = Math.min(obstacle.width / bugImage.naturalWidth, obstacle.height / bugImage.naturalHeight)
-      const width = bugImage.naturalWidth * scale
-      const height = bugImage.naturalHeight * scale
+      const scale = Math.min(obstacle.width / image.naturalWidth, obstacle.height / image.naturalHeight)
+      const width = image.naturalWidth * scale
+      const height = image.naturalHeight * scale
       const x = obstacle.x + (obstacle.width - width) / 2
       const y = obstacle.y + obstacle.height - height
-      ctx.drawImage(bugImage, x, y, width, height)
+      ctx.drawImage(image, x, y, width, height)
     }
 
     /**

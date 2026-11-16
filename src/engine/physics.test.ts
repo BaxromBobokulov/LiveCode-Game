@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { GRAVITY, JUMP_FORCE } from '../constants/game'
+import { GRAVITY, JUMP_FORCE, MASCOT_SIZE, SCALE } from '../constants/game'
 import { applyGravity, applyVelocity, jump } from './physics'
 import type { Entity } from './types'
 
 const GROUND_Y = 500
-const SIZE = 48
+/** The game's mascot hitbox (48 px times SCALE). */
+const SIZE = MASCOT_SIZE
 /** The y of an entity's top edge when it rests on the ground. */
 const RESTING_Y = GROUND_Y - SIZE
 
-/** A 48px entity standing on the ground. */
-const standing: Entity = { x: 80, y: RESTING_Y, vy: 0, width: SIZE, height: SIZE, onGround: true }
+/** The mascot standing on the ground, at its in game x. */
+const standing: Entity = { x: 80 * SCALE, y: RESTING_Y, vy: 0, width: SIZE, height: SIZE, onGround: true }
 
 /** The same entity, somewhere in the air. */
 const airborne = (y: number, vy: number): Entity => ({ ...standing, y, vy, onGround: false })
