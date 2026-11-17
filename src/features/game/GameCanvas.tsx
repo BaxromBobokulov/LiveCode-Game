@@ -48,6 +48,14 @@ const MAX_DT = 0.05
 const PARALLAX_RATIO = 0.2
 /** Height of the bright strip along the top of the ground platform, in px. */
 const GROUND_EDGE_HEIGHT = 6 * SCALE
+/**
+ * Width of one scallop (rounded bump) hanging under the edge strip, in px.
+ * It divides TICK_SPACING evenly, so the scallops wrap with groundScroll and
+ * scroll in step with the ticks.
+ */
+const SCALLOP_WIDTH = 20 * SCALE
+/** How far each scallop hangs below the edge strip, in px. */
+const SCALLOP_DEPTH = 5 * SCALE
 /** Extra room past the right edge, so a shape fully leaves the screen before it wraps around. */
 const DECOR_MARGIN = 40 * SCALE
 
@@ -417,6 +425,31 @@ export function GameCanvas() {
       ctx.globalAlpha = 1
     }
 
+    /**
+     * The bright edge along the top of the ground or a platform: a flat accent
+     * strip whose top sits exactly on the surface line (where the mascot
+     * lands), with a row of rounded scallops hanging below it, plus a thin
+     * highlight on top. Purely decorative; nothing here moves the surface.
+     * firstX is where the first scallop starts and step is each scallop's width.
+     */
+    const drawEdge = (left: number, top: number, edgeWidth: number, firstX: number, step: number) => {
+      const right = left + edgeWidth
+      const base = top + GROUND_EDGE_HEIGHT
+      ctx.fillStyle = colors.accent
+      ctx.fillRect(left, top, edgeWidth, GROUND_EDGE_HEIGHT)
+      // One path for the whole row. A quadratic curve with its control point at
+      // twice the depth bulges exactly SCALLOP_DEPTH below the strip. Filling the
+      // open path closes it along the strip's bottom line.
+      ctx.beginPath()
+      ctx.moveTo(firstX, base)
+      for (let x = firstX; x < right - 0.5; x += step) {
+        ctx.quadraticCurveTo(x + step / 2, base + SCALLOP_DEPTH * 2, x + step, base)
+      }
+      ctx.fill()
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'
+      ctx.fillRect(left, top, edgeWidth, 1)
+    }
+
     const draw = () => {
       // Draw in world px: one world px is dpr × viewScale buffer pixels.
       const scale = (window.devicePixelRatio || 1) * viewScale()
@@ -438,17 +471,15 @@ export function GameCanvas() {
       // Tick marks scrolling left inside the band. Because groundScroll wraps
       // at exactly one spacing, the pattern repeats seamlessly.
       ctx.fillStyle = colors.groundTexture
+      const tickY = groundY + GROUND_EDGE_HEIGHT + SCALLOP_DEPTH + 6 * SCALE
       for (let x = -groundScroll; x < width; x += TICK_SPACING) {
-        ctx.fillRect(x, groundY + GROUND_EDGE_HEIGHT + 8 * SCALE, 2 * SCALE, TICK_LENGTH)
+        ctx.fillRect(x, tickY, 2 * SCALE, TICK_LENGTH)
       }
-      // Bright accent strip along the top edge, with a thin lighter line on top.
-      ctx.fillStyle = colors.accent
-      ctx.fillRect(0, groundY, width, GROUND_EDGE_HEIGHT)
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'
-      ctx.fillRect(0, groundY, width, 1)
+      // The scallops start at -groundScroll like the ticks, so they move together.
+      drawEdge(0, groundY, width, -groundScroll, SCALLOP_WIDTH)
 
       // Raised platforms: the ground slab drawn higher, with the same fill and
-      // edge strip, so they read as ground and not as an obstacle.
+      // edge, so they read as ground and not as an obstacle.
       for (const platform of platforms) {
         const top = platformTop(platform, groundY)
         ctx.fillStyle = colors.groundFill
@@ -457,10 +488,10 @@ export function GameCanvas() {
         ctx.fillStyle = colors.groundTexture
         ctx.fillRect(platform.x, top, 2 * SCALE, platform.rise)
         ctx.fillRect(platform.x + platform.width - 2 * SCALE, top, 2 * SCALE, platform.rise)
-        ctx.fillStyle = colors.accent
-        ctx.fillRect(platform.x, top, platform.width, GROUND_EDGE_HEIGHT)
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'
-        ctx.fillRect(platform.x, top, platform.width, 1)
+        // Scallops are fitted to the platform's width (a whole number of them),
+        // so the row ends cleanly at both sides. They ride along with platform.x.
+        const step = platform.width / Math.max(1, Math.round(platform.width / SCALLOP_WIDTH))
+        drawEdge(platform.x, top, platform.width, platform.x, step)
       }
 
       for (const obstacle of obstacles) drawObstacle(obstacle)
