@@ -85,6 +85,38 @@ const MAX_TILT = 0.2
 /** How fast the shown tilt catches up with the target tilt, per second. Higher is snappier. */
 const TILT_EASE = 14
 
+// --- Squash and stretch (drawing only; the hitbox never changes size) ---
+
+/** Takeoff: taller and narrower, for this long, in seconds. */
+const STRETCH_DURATION = 0.11
+const STRETCH_SCALE_X = 0.9
+const STRETCH_SCALE_Y = 1.15
+/** Landing: shorter and wider, for this long, in seconds. */
+const SQUASH_DURATION = 0.12
+const SQUASH_SCALE_X = 1.1
+const SQUASH_SCALE_Y = 0.85
+
+// --- Landing dust (drawing only) ---
+
+/** How long one puff of dust lasts, in seconds. */
+const DUST_LIFE = 0.26
+/** Starting radius of a dust particle, in px. It grows a little as it fades. */
+const DUST_RADIUS = 3 * SCALE
+/** Strongest opacity of a particle, right at landing. */
+const DUST_ALPHA = 0.55
+/**
+ * How each particle of a puff flies off the feet: sideways and upward speed,
+ * in px/s. Two to each side, the outer ones faster and flatter.
+ */
+const DUST_BURST: readonly { vx: number; vy: number }[] = [
+  { vx: -140 * SCALE, vy: -40 * SCALE },
+  { vx: -70 * SCALE, vy: -75 * SCALE },
+  { vx: 70 * SCALE, vy: -75 * SCALE },
+  { vx: 140 * SCALE, vy: -40 * SCALE },
+]
+/** Slows the particles down so they puff out and hang, instead of flying away. Per second. */
+const DUST_DRAG = 6
+
 // --- Obstacle sprites (drawing only; each obstacle's hitbox is unchanged) ---
 
 /**
@@ -229,6 +261,15 @@ export function GameCanvas() {
     let lastTime: number | null = null
     /** The mascot's tilt as drawn, in radians. Eases toward the target so landing doesn't snap. Drawing only. */
     let mascotTilt = 0
+    /** Which squash/stretch is playing, and how many seconds of it are left. Drawing only. */
+    let squashKind: 'stretch' | 'squash' = 'stretch'
+    let squashLeft = 0
+    /**
+     * A fixed pool of dust particles, one per DUST_BURST entry. Created once and
+     * reused on every landing, so the effect never allocates during a run.
+     * A particle with age >= DUST_LIFE is not drawn.
+     */
+    const dust = DUST_BURST.map(() => ({ x: 0, y: 0, vx: 0, vy: 0, age: DUST_LIFE }))
     /** The score we last sent to the store, so we only send it when it changes. */
     let publishedScore = 0
     /** True only while the store says 'playing'. Paused, hit, or on the menu: nothing moves. */
@@ -248,7 +289,29 @@ export function GameCanvas() {
       spawnInterval = pickSpawnInterval()
       elapsedTime = 0
       mascotTilt = 0
+      squashLeft = 0
+      for (const particle of dust) particle.age = DUST_LIFE
       publishedScore = 0
+    }
+
+    /** Starts a squash or stretch from its strongest point. */
+    const startSquash = (kind: 'stretch' | 'squash') => {
+      squashKind = kind
+      squashLeft = kind === 'stretch' ? STRETCH_DURATION : SQUASH_DURATION
+    }
+
+    /** Fires every particle of the pool out from the mascot's feet. */
+    const spawnDust = () => {
+      const feetX = mascot.x + mascot.width / 2
+      const feetY = mascot.y + mascot.height
+      DUST_BURST.forEach((burst, i) => {
+        const particle = dust[i]
+        particle.x = feetX
+        particle.y = feetY
+        particle.vx = burst.vx
+        particle.vy = burst.vy
+        particle.age = 0
+      })
     }
 
     // The store's status drives the canvas. startGame() begins a fresh run,
@@ -278,7 +341,11 @@ export function GameCanvas() {
 
     // --- Input ---
     const handleJump = () => {
-      if (running) mascot = jump(mascot)
+      if (!running) return
+      const wasOnGround = mascot.onGround
+      mascot = jump(mascot)
+      // Only a real takeoff stretches; a press in mid air does nothing.
+      if (wasOnGround && !mascot.onGround) startSquash('stretch')
     }
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.repeat) return
@@ -322,7 +389,26 @@ export function GameCanvas() {
       backgroundScroll += distance * PARALLAX_RATIO
 
       const floor = floorY(mascot, prevBottom, platforms, groundY)
+      const wasAirborne = !mascot.onGround
       mascot = applyVelocity(applyGravity(mascot, dt), dt, floor)
+      // Just touched down (ground or platform top): squash and kick up dust.
+      // Read only from the physics result; nothing here feeds back into it.
+      if (wasAirborne && mascot.onGround) {
+        startSquash('squash')
+        spawnDust()
+      }
+      squashLeft = Math.max(0, squashLeft - dt)
+
+      // Dust sits on the ground, so it scrolls left with it, while drag slows its own puff.
+      const drag = Math.max(0, 1 - DUST_DRAG * dt)
+      for (const particle of dust) {
+        if (particle.age >= DUST_LIFE) continue
+        particle.age += dt
+        particle.vx *= drag
+        particle.vy *= drag
+        particle.x += particle.vx * dt - distance
+        particle.y += particle.vy * dt
+      }
 
       // Maybe add a platform or an obstacle at the right edge.
       timeSinceLastSpawn += dt
@@ -496,7 +582,22 @@ export function GameCanvas() {
 
       for (const obstacle of obstacles) drawObstacle(obstacle)
 
+      drawDust()
       drawMascot()
+    }
+
+    /** Landing dust: small accent circles that fade out and grow a little. Behind the mascot. */
+    const drawDust = () => {
+      ctx.fillStyle = colors.accent
+      for (const particle of dust) {
+        if (particle.age >= DUST_LIFE) continue
+        const t = particle.age / DUST_LIFE
+        ctx.globalAlpha = DUST_ALPHA * (1 - t)
+        ctx.beginPath()
+        ctx.arc(particle.x, particle.y, DUST_RADIUS * (1 + t), 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.globalAlpha = 1
     }
 
     /** Picks the sprite for a box by its shape (see BUG_MIN_RATIO). */
@@ -539,11 +640,26 @@ export function GameCanvas() {
       const centerX = mascot.x + mascot.width / 2
       const bottom = mascot.y + mascot.height - bob
 
+      // Squash/stretch strength: 1 right at takeoff or landing, easing to 0
+      // (smoothstep on the time left, so it holds briefly then settles).
+      const duration = squashKind === 'stretch' ? STRETCH_DURATION : SQUASH_DURATION
+      const left = squashLeft / duration
+      const strength = left * left * (3 - 2 * left)
+      const peakX = squashKind === 'stretch' ? STRETCH_SCALE_X : SQUASH_SCALE_X
+      const peakY = squashKind === 'stretch' ? STRETCH_SCALE_Y : SQUASH_SCALE_Y
+      const scaleX = 1 + (peakX - 1) * strength
+      const scaleY = 1 + (peakY - 1) * strength
+
       // Rotate around the middle of the sprite, so the lean looks like a body
       // turning and not like a swing from the feet.
       ctx.save()
       ctx.translate(centerX, bottom - height / 2)
       ctx.rotate(mascotTilt)
+      // Scale from the feet, along the leaning body, so a squash keeps the feet
+      // planted instead of lifting them off the ground.
+      ctx.translate(0, height / 2)
+      ctx.scale(scaleX, scaleY)
+      ctx.translate(0, -height / 2)
       ctx.drawImage(mascotImage, -width * SPRITE_BODY_CENTER_X, -height / 2, width, height)
       ctx.restore()
     }
