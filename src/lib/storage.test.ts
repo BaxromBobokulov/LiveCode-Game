@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getBestScore, setBestScore } from './storage'
+import { getSyntaxBestScore, setSyntaxBestScore } from './storage'
 
 const KEY = 'livecode-game-bestscore'
 
@@ -83,5 +84,34 @@ describe('storage', () => {
       },
     })
     expect(() => setBestScore(10)).not.toThrow()
+  })
+})
+
+describe('Syntax Rush best score storage (spec 0002)', () => {
+  const SYNTAX_KEY = 'livecode-game-bestscore-syntax'
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('reads 0 when nothing is saved or the value is corrupted', () => {
+    stubStorage()
+    expect(getSyntaxBestScore()).toBe(0)
+    stubStorage({ [SYNTAX_KEY]: 'not-a-number' })
+    expect(getSyntaxBestScore()).toBe(0)
+  })
+
+  it('saves and reads its own key, leaving the Classic key alone', () => {
+    const data = stubStorage({ [KEY]: '128' })
+    setSyntaxBestScore(70)
+    expect(getSyntaxBestScore()).toBe(70)
+    expect(data.get(KEY)).toBe('128')
+    expect(getBestScore()).toBe(128)
+  })
+
+  it('never throws when storage is missing or blocked', () => {
+    vi.stubGlobal('localStorage', undefined)
+    expect(getSyntaxBestScore()).toBe(0)
+    expect(() => setSyntaxBestScore(5)).not.toThrow()
   })
 })

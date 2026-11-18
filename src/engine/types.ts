@@ -35,3 +35,43 @@ export type Obstacle = {
   width: number
   height: number
 }
+
+// --- Syntax Rush (spec 0002) ---
+
+/** Which game mode a run belongs to. */
+export type GameMode = 'classic' | 'syntax'
+
+/** A Syntax Rush obstacle: a bug box carrying one character to type. */
+export type SymbolObstacle = Obstacle & {
+  /** Counter unique within a run, so a resolved key can name which bug to remove. */
+  id: number
+  /** The one character shown above the bug (a lowercase letter or a code symbol). */
+  symbol: string
+}
+
+/** The typing results shown on the Syntax Rush Game Over screen. */
+export type TypingStats = {
+  wpm: number
+  /** Whole percent, or null when no counted key was pressed. */
+  accuracy: number | null
+}
+
+/** The KeyboardEvent fields the engine needs, copied out so it needs no DOM type. */
+export type KeyInput = {
+  key: string
+  code: string
+  repeat: boolean
+  ctrlKey: boolean
+  altKey: boolean
+  metaKey: boolean
+  isComposing: boolean
+}
+
+/**
+ * What a key press means in Syntax Rush:
+ * ignore (left alone), block (prevented but not counted), or typed (a character to match).
+ */
+export type KeyClass =
+  | { kind: 'ignore' }
+  | { kind: 'block' }
+  | { kind: 'typed'; char: string; nonLatin: boolean }

@@ -254,3 +254,92 @@ describe('gameStore best score persistence', () => {
     expect(store.getState().bestScore).toBe(90)
   })
 })
+
+describe('gameStore Syntax Rush (spec 0002)', () => {
+  const CLASSIC_KEY = 'livecode-game-bestscore'
+  const SYNTAX_KEY = 'livecode-game-bestscore-syntax'
+  const stats = { wpm: 12, accuracy: 90 }
+
+  beforeEach(() => {
+    useGameStore.setState(initialState, true)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('startSyntaxGame() sets mode, status, lives and combo in a single update', () => {
+    const listener = vi.fn()
+    const unsubscribe = useGameStore.subscribe(listener)
+    useGameStore.setState({ score: 42, combo: 5, lives: 1, lastStats: stats })
+    listener.mockClear()
+
+    useGameStore.getState().startSyntaxGame()
+
+    expect(listener).toHaveBeenCalledTimes(1)
+    const { status, mode, score, lives, combo, lastStats } = useGameStore.getState()
+    expect({ status, mode, score, lives, combo, lastStats }).toEqual({
+      status: 'playing',
+      mode: 'syntax',
+      score: 0,
+      lives: 3,
+      combo: 0,
+      lastStats: null,
+    })
+    unsubscribe()
+  })
+
+  it('startGame() after a Syntax Rush run switches back to classic', () => {
+    useGameStore.getState().startSyntaxGame()
+    useGameStore.getState().endSyntaxGame(30, stats)
+
+    useGameStore.getState().startGame()
+
+    expect(useGameStore.getState().mode).toBe('classic')
+  })
+
+  it('setCombo() and setLives() notify nobody when the value does not change', () => {
+    const listener = vi.fn()
+    const unsubscribe = useGameStore.subscribe(listener)
+
+    useGameStore.getState().setCombo(0)
+    useGameStore.getState().setLives(3)
+    expect(listener).not.toHaveBeenCalled()
+
+    useGameStore.getState().setCombo(4)
+    useGameStore.getState().setLives(2)
+    expect(listener).toHaveBeenCalledTimes(2)
+    expect(useGameStore.getState().combo).toBe(4)
+    expect(useGameStore.getState().lives).toBe(2)
+    unsubscribe()
+  })
+
+  it('endSyntaxGame() records the score and stats, and only saves a higher Syntax Rush best', () => {
+    const setItem = vi.fn()
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem })
+    useGameStore.getState().startSyntaxGame()
+
+    useGameStore.getState().endSyntaxGame(120, stats)
+    expect(useGameStore.getState()).toMatchObject({
+      status: 'gameover',
+      score: 120,
+      syntaxBestScore: 120,
+      lastStats: stats,
+    })
+    expect(setItem).toHaveBeenCalledExactlyOnceWith(SYNTAX_KEY, '120')
+
+    useGameStore.getState().endSyntaxGame(50, stats)
+    expect(useGameStore.getState().syntaxBestScore).toBe(120)
+    expect(setItem).toHaveBeenCalledTimes(1)
+  })
+
+  it('endSyntaxGame() never touches the Classic best score or its key', () => {
+    const setItem = vi.fn()
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem })
+
+    useGameStore.getState().endSyntaxGame(500, stats)
+
+    expect(useGameStore.getState().bestScore).toBe(0)
+    expect(setItem).not.toHaveBeenCalledWith(CLASSIC_KEY, expect.anything())
+  })
+})

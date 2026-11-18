@@ -117,3 +117,76 @@ export const PLATFORM_WIDTH_MAX = 720 * SCALE
  * onto it, in px. Deeper than this, touching the platform's side ends the run.
  */
 export const STEP_TOLERANCE = 6 * SCALE
+
+// --- Syntax Rush (spec 0002) ---
+// A second, keyboard only mode: type the character shown on each bug to
+// destroy it before it reaches the mascot. Classic Runner never reads these.
+// Placeholders to tune; the fairness rule (visible time at top speed) is
+// checked in syntaxRush.test.ts.
+
+/**
+ * How wide the Syntax Rush play area is, in world px, on every screen. The
+ * canvas is scaled to fit this width (ignoring height), so every desktop gets
+ * the same reaction time and scores stay comparable.
+ */
+export const SYNTAX_VIEW_WIDTH = 1280
+
+/** Narrowest window, in CSS px, that may start Syntax Rush (keeps tiles readable). */
+export const SYNTAX_MIN_WIDTH = 1024
+
+/** Scroll speed at the start of a Syntax Rush run, in px/s. Slower than Classic: typing takes longer than jumping. */
+export const SYNTAX_BASE_SPEED = 150 * SCALE
+
+/** How much the Syntax Rush scroll speed grows per second, in px/s per second. */
+export const SYNTAX_SPEED_INCREASE_RATE = 3 * SCALE
+
+/** The fastest Syntax Rush ever gets, in px/s. Reached after (300 - 150) / 3 = 50 s. */
+export const SYNTAX_MAX_SPEED = 300 * SCALE
+
+/** Shortest gap between Syntax Rush spawns, in seconds. */
+export const SYNTAX_SPAWN_INTERVAL_MIN = 1.3
+
+/** Longest gap between Syntax Rush spawns, in seconds. */
+export const SYNTAX_SPAWN_INTERVAL_MAX = 2.4
+
+/** The shortest time a bug must be fully visible before it reaches the mascot at top speed, in seconds. */
+export const SYNTAX_MIN_VISIBLE_TIME = 1.0
+
+/** Letters a bug can carry, from the start of a run. Lowercase; typing matches either case. */
+export const SYNTAX_LETTERS: readonly string[] = 'abcdefghijklmnopqrstuvwxyz'.split('')
+
+/** Code symbols from the start of a run. No quotes or backtick: they are dead keys on many layouts. */
+export const SYNTAX_SYMBOLS_TIER_1: readonly string[] = [';', '=', '(', ')', '{', '}']
+
+/** Code symbols added once the run reaches SYNTAX_TIER_2_SCORE. */
+export const SYNTAX_SYMBOLS_TIER_2: readonly string[] = ['[', ']', '<', '>', ':', '+']
+
+/** Full score (distance plus coins) at which tier 2 starts. */
+export const SYNTAX_TIER_2_SCORE = 200
+
+/** Chance that a tier 1 spawn carries a letter (otherwise a code symbol). */
+export const LETTER_CHANCE_TIER_1 = 0.75
+
+/** Chance that a tier 2 spawn carries a letter (otherwise a code symbol). */
+export const LETTER_CHANCE_TIER_2 = 0.5
+
+/** Lives at the start of a Syntax Rush run. */
+export const SYNTAX_LIVES = 3
+
+/** Points added to the score for every bug destroyed. */
+export const COIN_VALUE = 10
+
+/** How long the grace period after a lost life lasts, in real seconds. */
+export const GRACE_DURATION = 2.0
+
+/** How fast the world runs during grace, as a share of normal time. */
+export const GRACE_SLOW_FACTOR = 0.5
+
+/** The last part of grace, in seconds, during which the world eases back to full speed. */
+export const GRACE_RECOVER = 0.5
+
+/** How long the red edge flash after a wrong key lasts, in seconds. */
+export const WRONG_FLASH_DURATION = 0.15
+
+/** Shortest time between two flash starts, in seconds, so mashing never flashes more than 3 times a second. */
+export const WRONG_FLASH_MIN_GAP = 0.34

@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import type { GameStatus } from '../engine/types'
 import { getBestScore, setBestScore } from '../lib/storage'
+import type { GameMode, TypingStats } from '../engine/types'
+import { getSyntaxBestScore, setSyntaxBestScore } from '../lib/storage'
+import { SYNTAX_LIVES } from '../constants/game'
 
 type GameStore = {
   status: GameStatus
@@ -15,6 +18,24 @@ type GameStore = {
   resumeGame: () => void
   endGame: (finalScore: number) => void
   resetToMenu: () => void
+
+  // --- Syntax Rush (spec 0002) ---
+  // `mode` is only read while status is playing, paused or gameover.
+  // resetToMenu leaves these as they are; the next start overwrites them.
+  mode: GameMode
+  syntaxBestScore: number
+  /** Lives left in the current Syntax Rush run. */
+  lives: number
+  /** Bugs destroyed in a row in the current Syntax Rush run. */
+  combo: number
+  /** WPM and accuracy of the last finished Syntax Rush run. */
+  lastStats: TypingStats | null
+  startSyntaxGame: () => void
+  /** Updates lives. Does nothing if the value is unchanged. */
+  setLives: (lives: number) => void
+  /** Updates the combo. Does nothing if unchanged, so mashing wrong keys at 0 notifies nobody. */
+  setCombo: (combo: number) => void
+  endSyntaxGame: (finalScore: number, stats: TypingStats) => void
 }
 
 export const useGameStore = create<GameStore>()((set, get) => ({
@@ -23,7 +44,7 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   // Read once, when the store is created, so the menu shows it right away.
   bestScore: getBestScore(),
 
-  startGame: () => set({ status: 'playing', score: 0 }),
+  startGame: () => set({ status: 'playing', score: 0, mode: 'classic' }),
 
   setScore: (score) => set({ score }),
 
@@ -47,4 +68,34 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   },
 
   resetToMenu: () => set({ status: 'menu', score: 0 }),
+
+  // --- Syntax Rush (spec 0002) ---
+  mode: 'classic',
+  syntaxBestScore: getSyntaxBestScore(),
+  lives: SYNTAX_LIVES,
+  combo: 0,
+  lastStats: null,
+
+  // One set call, so no render ever sees 'playing' together with the old mode.
+  startSyntaxGame: () =>
+    set({ status: 'playing', mode: 'syntax', score: 0, lives: SYNTAX_LIVES, combo: 0, lastStats: null }),
+
+  setLives: (lives) => {
+    if (get().lives !== lives) set({ lives })
+  },
+
+  setCombo: (combo) => {
+    if (get().combo !== combo) set({ combo })
+  },
+
+  endSyntaxGame: (finalScore, stats) => {
+    const isNewBest = finalScore > get().syntaxBestScore
+    if (isNewBest) setSyntaxBestScore(finalScore)
+    set({
+      status: 'gameover',
+      score: finalScore,
+      lastStats: stats,
+      ...(isNewBest && { syntaxBestScore: finalScore }),
+    })
+  },
 }))

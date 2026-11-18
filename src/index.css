@@ -13,6 +13,7 @@
   --color-accent: #3b82f6; /* primary blue */
   --color-accent-strong: #2563eb; /* indigo, used for button fills */
   --color-gold: #fbbf24; /* trophies and best scores */
+  --color-danger: #ef4444; /* Syntax Rush: wrong key flash, lost lives */
 }
 
 html,
