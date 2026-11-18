@@ -137,17 +137,26 @@ export const SYNTAX_MIN_WIDTH = 1024
 /** Scroll speed at the start of a Syntax Rush run, in px/s. Slower than Classic: typing takes longer than jumping. */
 export const SYNTAX_BASE_SPEED = 150 * SCALE
 
-/** How much the Syntax Rush scroll speed grows per second, in px/s per second. */
-export const SYNTAX_SPEED_INCREASE_RATE = 3 * SCALE
+/**
+ * How much the Syntax Rush scroll speed grows per second, in px/s per second.
+ * Steep on purpose, so the run clearly gets harder: about 1.5 times the
+ * starting speed after 10 s, and twice it after about 19 s.
+ */
+export const SYNTAX_SPEED_INCREASE_RATE = 8 * SCALE
 
-/** The fastest Syntax Rush ever gets, in px/s. Reached after (300 - 150) / 3 = 50 s. */
-export const SYNTAX_MAX_SPEED = 300 * SCALE
+/**
+ * The fastest Syntax Rush ever gets, in px/s. Reached after (420 - 150) / 8,
+ * about 34 s. Capped by the fairness test: a bug then still has
+ * (1280 - 160 - 96 - 100) / 840, about 1.1 s, on screen before it reaches the mascot
+ * (the limit for 1.0 s would be 462 * SCALE).
+ */
+export const SYNTAX_MAX_SPEED = 420 * SCALE
 
 /** Shortest gap between Syntax Rush spawns, in seconds. */
-export const SYNTAX_SPAWN_INTERVAL_MIN = 1.3
+export const SYNTAX_SPAWN_INTERVAL_MIN = 0.8
 
-/** Longest gap between Syntax Rush spawns, in seconds. */
-export const SYNTAX_SPAWN_INTERVAL_MAX = 2.4
+/** Longest gap between Syntax Rush spawns, in seconds. A steady typing pace, no long empty stretches. */
+export const SYNTAX_SPAWN_INTERVAL_MAX = 1.5
 
 /** The shortest time a bug must be fully visible before it reaches the mascot at top speed, in seconds. */
 export const SYNTAX_MIN_VISIBLE_TIME = 1.0
