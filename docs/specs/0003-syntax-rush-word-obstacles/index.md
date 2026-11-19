@@ -2,6 +2,7 @@
 
 **Date**: 2026-11-18
 **Status**: Accepted (amended 2026-11-19: overlapping tiles lift, AC-10; built)
+**Amended**: 2026-11-19, difficulty retune in commit a07971b (AC-2, AC-4, AC-5, the constants list, the resulting numbers, the picking and gap tests; reasoning in rationale.md)
 **Amends**: [0002](../0002-syntax-rush-mode/index.md) (replaces 0002 AC-6 for words, the visibility edge of AC-8, the key resolution of AC-9, and the points rule of AC-17; changes two spawn gap constants of AC-7; everything else in 0002 still holds)
 
 ## Summary
@@ -19,14 +20,15 @@ Some Syntax Rush bugs now carry a whole programming keyword (like `if`, `while`,
 
 Words and spawning
 - **AC-1**: Some bugs carry a word instead of one character: a lowercase programming keyword of 2 to 8 letters, `a` to `z` only (no symbols, so non Latin layouts still work through the 0002 `event.code` fallback). The word shows in one wide tile above the bug. Single character obstacles keep their 0002 pools, tiers, and letter chance unchanged. The word lists:
-  - Tier 1, from the start of a run (10 words): `if`, `for`, `let`, `var`, `else`, `true`, `null`, `loop`, `const`, `while`.
-  - Tier 2, once the full score reaches `SYNTAX_TIER_2_SCORE` (200), adds 8 words: `array`, `class`, `break`, `return`, `string`, `import`, `boolean`, `function`.
-- **AC-2**: Each spawn first rolls word or single: a word with chance `WORD_CHANCE_TIER_1` (0.2) below score 200, `WORD_CHANCE_TIER_2` (0.3) from 200. Otherwise the single character is picked exactly as in 0002 AC-5 and AC-6 (never the same as the previous single, even with words spawned in between: `lastSymbol` remembers singles only).
-- **AC-3**: A word is picked evenly from the tier's words, leaving out the last word spawned this run and any word whose first letter is the first letter of a word already on screen (fully visible or not). If that leaves no word, only the "not the last word" rule applies. Singles are not considered: a single `l` next to the word `loop` is allowed (AC-8 then sends `l` to whichever is nearer).
-- **AC-4**: Obstacles spawn closer together: the base gap is picked between `SYNTAX_SPAWN_INTERVAL_MIN` (0.7 s, was 0.8) and `SYNTAX_SPAWN_INTERVAL_MAX` (1.3 s, was 1.5). Right after a word spawns, the next gap also adds `WORD_SPAWN_GAP_PER_LETTER` (0.3 s) per letter of that word. The first spawn of a run still waits one base gap.
+  - Tier 1, from the start of a run (22 words, 2 to 6 letters): C `if`, `for`, `int`, `float`, `char`, `else`, `switch`, `while`, `void`; Python `def`, `elif`, `in`, `not`, `and`, `or`, `pass`, `print`, `len`, `range`, `input`; both `true`, `false`.
+  - Tier 2, once the full score reaches `SYNTAX_TIER_2_SCORE` (200), adds 16 words: C `struct`, `printf`, `scanf`, `sizeof`, `include`; Python `lambda`, `import`, `global`, `return`, `continue`; general `array`, `class`, `break`, `string`, `boolean`, `function`.
+  - The lists match what LiveCode students learn (C and Python), changed 2026-11-19 from the first JavaScript-style lists. All lowercase, so Python's `True` / `False` appear as `true` / `false`.
+- **AC-2**: Each spawn first rolls word or single: a word with chance `WORD_CHANCE_TIER_1` (0.35) below score 200, `WORD_CHANCE_TIER_2` (0.45) from 200 (retuned 2026-11-19, first set at 0.2 and 0.3). Otherwise the single character is picked exactly as in 0002 AC-5 and AC-6 (never the same as the previous single, even with words spawned in between: `lastSymbol` remembers singles only).
+- **AC-3**: A word is picked evenly from the tier's words, leaving out the last word spawned this run and any word whose first letter is the first letter of a word already on screen (fully visible or not). If that leaves no word, only the "not the last word" rule applies. Singles are not considered: a single `l` next to the word `len` is allowed (AC-8 then sends `l` to whichever is nearer).
+- **AC-4**: The base gap is picked between `SYNTAX_SPAWN_INTERVAL_MIN` (0.9 s) and `SYNTAX_SPAWN_INTERVAL_MAX` (1.6 s) (retuned 2026-11-19; this spec first set 0.7 and 1.3). Right after a word spawns, the next gap also adds `WORD_SPAWN_GAP_PER_LETTER` (0.3 s) per letter of that word. The first spawn of a run still waits one base gap.
 
 Speed and fairness
-- **AC-5**: Single characters keep the 0002 speed curve and their guarantee unchanged: about 1.1 s fully visible at top speed (at least `SYNTAX_MIN_VISIBLE_TIME`, 1.0 s). A word moves at `min(syntaxSpeed(t) × WORD_SPEED_FACTOR, wordSpeedCap(letters))`, with `WORD_SPEED_FACTOR` = 0.5. The cap is set so a word is fully visible for at least `SYNTAX_MIN_VISIBLE_TIME + letters × WORD_LETTER_TIME` (`WORD_LETTER_TIME` = 0.4 s) before it reaches the mascot, at any speed. Each bug moves at its own speed; the ground, clouds, and particles keep moving at the single character speed. A unit test checks the guarantee for every word in both tiers at top speed.
+- **AC-5**: Single characters keep the 0002 speed curve and their guarantee unchanged: about 1.3 s fully visible at top speed (at least `SYNTAX_MIN_VISIBLE_TIME`, 1.0 s). A word moves at `min(syntaxSpeed(t) × WORD_SPEED_FACTOR, wordSpeedCap(letters))`, with `WORD_SPEED_FACTOR` = 0.5. The cap is set so a word is fully visible for at least `SYNTAX_MIN_VISIBLE_TIME + letters × WORD_LETTER_TIME` (`WORD_LETTER_TIME` = 0.4 s) before it reaches the mascot, at any speed. Each bug moves at its own speed; the ground, clouds, and particles keep moving at the single character speed. A unit test checks the guarantee for every word in both tiers at top speed.
 - **AC-6**: A word counts as fully on screen when its whole tile is inside the view: `max(x + width, x + width / 2 + wordLabelWidth(letters) / 2) <= SYNTAX_VIEW_WIDTH` (`x` and `width` are the bug's box), where `wordLabelWidth(n) = n × WORD_CHAR_WIDTH + 2 × WORD_TILE_PADDING`. A single character keeps the 0002 rule (`x + width`). Only fully visible obstacles show a tile, can be typed, or can be locked.
 
 Typing
@@ -124,21 +126,21 @@ Reused unchanged: `pickSymbol`, `classifyKey`, `matchesSymbol`, `syntaxSpeed`, `
 | WPM, accuracy | correct, wrong | `correctKeys` (plus one on `destroyed` and `progress`), `wrongKeys` |
 
 **New and changed constants** (`constants/game.ts`, Syntax Rush block, ASCII only, encoding kept):
-- Changed: `SYNTAX_SPAWN_INTERVAL_MIN = 0.7`, `SYNTAX_SPAWN_INTERVAL_MAX = 1.3`.
-- New: `SYNTAX_WORDS_TIER_1 = ['if', 'for', 'let', 'var', 'else', 'true', 'null', 'loop', 'const', 'while']`, `SYNTAX_WORDS_TIER_2 = ['array', 'class', 'break', 'return', 'string', 'import', 'boolean', 'function']`.
-- New: `WORD_CHANCE_TIER_1 = 0.2`, `WORD_CHANCE_TIER_2 = 0.3`.
+- Changed: `SYNTAX_SPAWN_INTERVAL_MIN = 0.9`, `SYNTAX_SPAWN_INTERVAL_MAX = 1.6` (retuned 2026-11-19, together with the 0002 speed curve: `SYNTAX_SPEED_INCREASE_RATE = 5 * SCALE`, `SYNTAX_MAX_SPEED = 360 * SCALE`).
+- New: `SYNTAX_WORDS_TIER_1 = ['if', 'for', 'int', 'float', 'char', 'else', 'switch', 'while', 'void', 'def', 'elif', 'in', 'not', 'and', 'or', 'pass', 'print', 'len', 'range', 'input', 'true', 'false']`, `SYNTAX_WORDS_TIER_2 = ['struct', 'printf', 'scanf', 'sizeof', 'include', 'lambda', 'import', 'global', 'return', 'continue', 'array', 'class', 'break', 'string', 'boolean', 'function']` (C and Python lists from 2026-11-19; see AC-1).
+- New: `WORD_CHANCE_TIER_1 = 0.35`, `WORD_CHANCE_TIER_2 = 0.45`.
 - New: `WORD_SPEED_FACTOR = 0.5`, `WORD_LETTER_TIME = 0.4` (s), `WORD_SPAWN_GAP_PER_LETTER = 0.3` (s).
-- New: `WORD_CHAR_WIDTH = 9 * SCALE`, `WORD_TILE_PADDING = 6 * SCALE` (world px; in the constants file, not the canvas, because the engine needs them for visibility and speed).
+- New: `WORD_CHAR_WIDTH = 10 * SCALE` (was 9; raised 2026-11-19 with the tile font going from 14 to 16), `WORD_TILE_PADDING = 6 * SCALE` (world px; in the constants file, not the canvas, because the engine needs them for visibility and speed).
 
 **Resulting numbers** (world px, `SCALE` 2; for tuning, not a test target except the guarantee):
 
 | Letters | Example | Tile width | Visible distance | Speed at start | Speed at top | Visible time at top | Guarantee |
 |---|---|---|---|---|---|---|---|
-| 1 (single) | `k` | 44 | 924 | 300 | 840 | 1.1 s | 1.0 s |
-| 2 | `if` | 60 | 924 | 150 | 420 | 2.2 s | 1.8 s |
-| 4 | `else` | 96 | 924 | 150 | 355 (cap) | 2.6 s | 2.6 s |
-| 6 | `return` | 132 | 908 | 150 | 267 (cap) | 3.4 s | 3.4 s |
-| 8 | `function` | 168 | 890 | 150 | 212 (cap) | 4.2 s | 4.2 s |
+| 1 (single) | `k` | 50 | 924 | 300 | 720 | 1.3 s | 1.0 s |
+| 2 | `if` | 64 | 924 | 150 | 360 | 2.6 s | 1.8 s |
+| 4 | `else` | 104 | 922 | 150 | 355 (cap) | 2.6 s | 2.6 s |
+| 6 | `return` | 144 | 902 | 150 | 265 (cap) | 3.4 s | 3.4 s |
+| 8 | `function` | 184 | 882 | 150 | 210 (cap) | 4.2 s | 4.2 s |
 
 At the start of a run every word gets about 6 s.
 
@@ -166,8 +168,8 @@ At the start of a run every word gets about 6 s.
 - Case and layout: typing `W` advances `while`; key `ц` with code `KeyW` (classified by 0002 `classifyKey`) advances it too. Verifies **AC-8**.
 - Lock: `lockTarget` returns the active word even when a single is nearer; with no active word, the nearest visible. Verifies **AC-10**.
 - Visibility: an 8 letter word whose bug is fully on screen but whose tile pokes past 1280 is not visible; a single at the same bug `x` is. Verifies **AC-6**.
-- Picking: `wordPool(199)` has 10, `wordPool(200)` has 18; `wordChance` 0.2 at 199, 0.3 at 200; `pickWord` never returns `lastWord`, skips `loop` while `let` is on screen (even off screen), and falls back when every first letter is taken; `pickSpawn` with first random 0.1 at score 0 returns a word, with 0.5 a single; `pickSpawn` with `lastSymbol = 'a'` and a word spawned in between still never returns `a` as a single. Verifies **AC-1**, **AC-2**, **AC-3**.
-- Gaps: `spawnGapAfter('k', () => 0)` is 0.7; `spawnGapAfter('return', () => 0)` is 0.7 + 1.8 = 2.5. Verifies **AC-4**.
+- Picking: `wordPool(199)` has 10, `wordPool(200)` has 18; `wordChance` equals `WORD_CHANCE_TIER_1` at 199 and `WORD_CHANCE_TIER_2` at 200, and tier 2 is higher; `pickWord` never returns `lastWord`, skips `loop` while `let` is on screen (even off screen), and falls back when every first letter is taken; `pickSpawn` with first random 0.1 at score 0 returns a word, with 0.5 a single; `pickSpawn` with `lastSymbol = 'a'` and a word spawned in between still never returns `a` as a single. Verifies **AC-1**, **AC-2**, **AC-3**.
+- Gaps: `spawnGapAfter('k', () => 0)` is `SYNTAX_SPAWN_INTERVAL_MIN` (0.9); `spawnGapAfter('return', () => 0)` is 0.9 + 1.8 = 2.7. Verifies **AC-4**.
 - Speeds: `obstacleSpeed('k', t)` equals `syntaxSpeed(t)`; `obstacleSpeed('if', 0)` is 150; `obstacleSpeed('function', 1000)` equals `wordSpeedCap(8)`; the guarantee invariant over all words. Verifies **AC-5**.
 - Advance: two obstacles, a single and a word, move by different distances in one call; `typed` is kept. Verifies **AC-5**, **AC-16**.
 - Score: `syntaxScore(10, 8)` is 180 (100 for 10 s of distance plus one `function` as 8 letters); `syntaxScore(0, 8)` is 80. Verifies **AC-13**.

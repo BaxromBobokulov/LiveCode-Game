@@ -83,6 +83,14 @@ Decided with the engineer, one question each:
 
 Decided by the architect: the overlap test lives in `SyntaxRushCanvas.tsx`, not the engine. It is drawing layout, it needs the tile sizes that only the canvas knows (`SYMBOL_TILE_SIZE`), and it changes no game rule, so the "one engine file explains the mechanic" rule is untouched. The cost is no unit test for it; the manual verify steps cover it.
 
+## Amendment: difficulty retune (2026-11-19, commit a07971b)
+
+After this spec shipped, students died too fast: almost none reached a score of 1000. Two causes worked together. The 0002 speed curve had been pushed up (ramp 8, top 420), and this spec tightened the gaps to 0.7 to 1.3 s while words were only 20 to 30 percent of spawns, so most of the load was fast single characters.
+
+The retune changes both sides. Speed: ramp 5 and top 360 (see 0002 rationale.md, I), which still doubles the speed within 30 s. Gaps: 0.9 to 1.6 s. Mix: words rise to 35 percent below score 200 and 45 percent from 200. Words walk at half speed and pay 10 points per letter, so more words give longer reaction windows and faster score growth together. The single character floor (1.0 s, now about 1.28 s) and the per word visible time floor are unchanged; for 4 letters and up the word cap still binds, so only `if` style 2 and 3 letter words gain time from the lower top speed.
+
+These values are a tuning guess from the death reports, not yet confirmed by playtest. Runner up: keep the gaps and only cut speed, which helps less early in the run, where the gaps matter most.
+
 ## Cross check (2026-11-19)
 
 The engineer accepted A to F as written, then asked for a review on a second model (Sonnet) before finalizing. It confirmed the numbers table against the real constants and found these, all fixed in `index.md`:

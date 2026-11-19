@@ -2,8 +2,9 @@
 
 **Date**: 2026-11-18
 **Status**: Accepted
-**Amended by**: [0003](../0003-syntax-rush-word-obstacles/index.md) (word obstacles; Accepted, not built yet)
+**Amended by**: [0003](../0003-syntax-rush-word-obstacles/index.md) (word obstacles; Accepted, built)
 **Amended**: 2026-11-19, Play button swap (AC-1, the menu notes, value sourcing, build plan task 12; reasoning in rationale.md, H)
+**Amended**: 2026-11-19, difficulty retune in commit a07971b (AC-7 visible time, the constants list, the visible time invariant; reasoning in rationale.md, I)
 
 ## Summary
 
@@ -33,7 +34,7 @@ Obstacles and symbols
   - Tier 2, once the run's full score (distance plus coins) reaches `SYNTAX_TIER_2_SCORE` (200): code symbols gain `[ ] < > : +` (12 in total); each spawn is a letter with chance `LETTER_CHANCE_TIER_2` (0.5).
   Quote keys (single quote, double quote, backtick) and any other dead key characters are never used.
 - **AC-6**: Each new obstacle first rolls letter or code symbol by the tier's chance, then picks uniformly inside that pool, never the same character as the obstacle spawned just before it.
-- **AC-7**: The play area is always `SYNTAX_VIEW_WIDTH` (1280) world px wide, on every screen: the canvas is drawn at `cssWidth / SYNTAX_VIEW_WIDTH`, ignoring height and ignoring Classic's `drawScale`. So difficulty is the same on every desktop. Scroll speed starts at `SYNTAX_BASE_SPEED`, grows by `SYNTAX_SPEED_INCREASE_RATE` per second, and stops at `SYNTAX_MAX_SPEED`. Spawn gaps are picked between `SYNTAX_SPAWN_INTERVAL_MIN` and `SYNTAX_SPAWN_INTERVAL_MAX`; the first spawn of a run waits one such gap. At top speed an obstacle is fully visible for at least `SYNTAX_MIN_VISIBLE_TIME` (1.0 s) before it touches the mascot (unit test; about 1.54 s with the values below).
+- **AC-7**: The play area is always `SYNTAX_VIEW_WIDTH` (1280) world px wide, on every screen: the canvas is drawn at `cssWidth / SYNTAX_VIEW_WIDTH`, ignoring height and ignoring Classic's `drawScale`. So difficulty is the same on every desktop. Scroll speed starts at `SYNTAX_BASE_SPEED`, grows by `SYNTAX_SPEED_INCREASE_RATE` per second, and stops at `SYNTAX_MAX_SPEED`. Spawn gaps are picked between `SYNTAX_SPAWN_INTERVAL_MIN` and `SYNTAX_SPAWN_INTERVAL_MAX`; the first spawn of a run waits one such gap. At top speed an obstacle is fully visible for at least `SYNTAX_MIN_VISIBLE_TIME` (1.0 s) before it touches the mascot (unit test; about 1.28 s with the values below).
 
 Typing
 - **AC-8**: Target lock: of the obstacles fully on screen (bug box `x + width <= SYNTAX_VIEW_WIDTH`), the one nearest the mascot (smallest `x`) is the target. A tile is drawn only once its bug is fully on screen. The target's character is gold, on a tile 1.2 times larger with an accent outline; every other character is muted on a normal tile. Color is never the only cue.
@@ -187,8 +188,8 @@ Key handling (window `keydown`, between frames; `destroyed` changes here, so the
 
 **New constants** (`constants/game.ts`, appended as one block `// --- Syntax Rush (spec 0002) ---`, placeholders to tune). The existing file has broken characters in some older comments; append ASCII only and keep the file's current encoding and line endings, so the diff shows only the new lines.
 - `SYNTAX_VIEW_WIDTH = 1280` (world px)
-- `SYNTAX_BASE_SPEED = 150 * SCALE`, `SYNTAX_SPEED_INCREASE_RATE = 3 * SCALE`, `SYNTAX_MAX_SPEED = 300 * SCALE` (top speed after 50 s)
-- `SYNTAX_SPAWN_INTERVAL_MIN = 1.3`, `SYNTAX_SPAWN_INTERVAL_MAX = 2.4` (s)
+- `SYNTAX_BASE_SPEED = 150 * SCALE`, `SYNTAX_SPEED_INCREASE_RATE = 5 * SCALE`, `SYNTAX_MAX_SPEED = 360 * SCALE` (top speed after 42 s; retuned 2026-11-19, first shipped as 3 and 300)
+- `SYNTAX_SPAWN_INTERVAL_MIN = 0.9`, `SYNTAX_SPAWN_INTERVAL_MAX = 1.6` (s; retuned 2026-11-19, first shipped as 1.3 and 2.4)
 - `SYNTAX_LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('')`
 - `SYNTAX_SYMBOLS_TIER_1 = [';', '=', '(', ')', '{', '}']`, `SYNTAX_SYMBOLS_TIER_2 = ['[', ']', '<', '>', ':', '+']`, `SYNTAX_TIER_2_SCORE = 200`
 - `LETTER_CHANCE_TIER_1 = 0.75`, `LETTER_CHANCE_TIER_2 = 0.5`
@@ -201,7 +202,7 @@ Drawing only constants live at the top of `SyntaxRushCanvas.tsx`, as Classic's d
 
 **Key invariants**:
 - No file listed in AC-3 is edited.
-- Visible time: `(SYNTAX_VIEW_WIDTH - MASCOT_X - MASCOT_SIZE - OBSTACLE_SIZES[1].width) / SYNTAX_MAX_SPEED >= SYNTAX_MIN_VISIBLE_TIME` (unit test; (1280 - 160 - 96 - 100) / 600 ≈ 1.54 s).
+- Visible time: `(SYNTAX_VIEW_WIDTH - MASCOT_X - MASCOT_SIZE - OBSTACLE_SIZES[1].width) / SYNTAX_MAX_SPEED >= SYNTAX_MIN_VISIBLE_TIME` (unit test; (1280 - 160 - 96 - 100) / 720 ≈ 1.28 s).
 - Readability: `syntaxViewScale(SYNTAX_MIN_WIDTH) × SYMBOL_FONT_SIZE >= 20` CSS px (unit test with the font size passed in, or asserted in a comment if the constant stays private).
 - Every character in the letters pool and both symbol tiers is a single ASCII character, none is a quote or backtick, and no two pools share a character (unit test).
 - `pickSymbol` never returns `previous` (unit test over both pools and both tiers).

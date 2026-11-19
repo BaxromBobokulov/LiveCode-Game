@@ -204,28 +204,58 @@ export const WRONG_FLASH_MIN_GAP = 0.34
 // Some bugs carry a whole keyword, typed letter by letter. Letters only, so
 // every layout that works for single letters works for words too.
 
-/** Words from the start of a run: short ones, 2 to 5 letters. */
+/**
+ * Words from the start of a run: short C and Python keywords, 2 to 6 letters.
+ * All lowercase, since the game only takes lowercase letters (so Python's
+ * True / False show up as true / false).
+ */
 export const SYNTAX_WORDS_TIER_1: readonly string[] = [
+  // C
   'if',
   'for',
-  'let',
-  'var',
+  'int',
+  'float',
+  'char',
   'else',
-  'true',
-  'null',
-  'loop',
-  'const',
+  'switch',
   'while',
+  'void',
+  // Python
+  'def',
+  'elif',
+  'in',
+  'not',
+  'and',
+  'or',
+  'pass',
+  'print',
+  'len',
+  'range',
+  'input',
+  // both
+  'true',
+  'false',
 ]
 
-/** Words added once the run reaches SYNTAX_TIER_2_SCORE: longer ones, up to 8 letters. */
+/** Words added once the run reaches SYNTAX_TIER_2_SCORE: longer C and Python keywords, 5 to 8 letters. */
 export const SYNTAX_WORDS_TIER_2: readonly string[] = [
+  // C
+  'struct',
+  'printf',
+  'scanf',
+  'sizeof',
+  'include',
+  // Python
+  'lambda',
+  'import',
+  'global',
+  'return',
+  'continue',
+  // general
   'array',
   'class',
   'break',
-  'return',
   'string',
-  'import',
   'boolean',
   'function',
 ]
@@ -250,7 +280,7 @@ export const WORD_LETTER_TIME = 0.4
 export const WORD_SPAWN_GAP_PER_LETTER = 0.3
 
 /** Width of one letter cell in a word tile, in px. The tile is drawn cell by cell, so this is exact. */
-export const WORD_CHAR_WIDTH = 9 * SCALE
+export const WORD_CHAR_WIDTH = 10 * SCALE
 
 /** Space between the tile's edge and its first or last letter cell, in px. */
 export const WORD_TILE_PADDING = 6 * SCALE

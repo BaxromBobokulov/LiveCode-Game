@@ -289,8 +289,8 @@ describe('word lists', () => {
   })
 
   it('unlocks the long words and a higher word chance at a full score of 200', () => {
-    expect(wordPool(199)).toHaveLength(10)
-    expect(wordPool(200)).toHaveLength(18)
+    expect(wordPool(199)).toHaveLength(SYNTAX_WORDS_TIER_1.length)
+    expect(wordPool(200)).toHaveLength(SYNTAX_WORDS_TIER_1.length + SYNTAX_WORDS_TIER_2.length)
     expect(wordChance(199)).toBe(WORD_CHANCE_TIER_1)
     expect(wordChance(200)).toBe(WORD_CHANCE_TIER_2)
     expect(WORD_CHANCE_TIER_2).toBeGreaterThan(WORD_CHANCE_TIER_1)
@@ -355,10 +355,10 @@ describe('word speed and fairness', () => {
   })
 
   it('matches the spec numbers for tile width and visible distance', () => {
-    expect(wordLabelWidth(2)).toBe(60)
-    expect(wordLabelWidth(8)).toBe(168)
+    expect(wordLabelWidth(2)).toBe(64)
+    expect(wordLabelWidth(8)).toBe(184)
     expect(wordVisibleDistance(2)).toBe(924)
-    expect(wordVisibleDistance(8)).toBe(890)
+    expect(wordVisibleDistance(8)).toBe(882)
   })
 
   it('moves a single and a word by different distances, keeping typed', () => {

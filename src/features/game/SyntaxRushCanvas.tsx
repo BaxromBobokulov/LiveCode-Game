@@ -20,6 +20,7 @@ import {
 } from '../../engine/syntaxRush'
 import type { Entity, SymbolObstacle } from '../../engine/types'
 import { useGameStore } from '../../store/gameStore'
+import { playBlip } from '../../lib/sound'
 import {
   GRACE_DURATION,
   MASCOT_SIZE,
@@ -64,11 +65,11 @@ const BLINK_DIM = 0.35
 const BLINK_STEP = 0.1
 
 // --- Character tiles above the bugs ---
-const SYMBOL_TILE_SIZE = 22 * SCALE
+const SYMBOL_TILE_SIZE = 25 * SCALE
 const SYMBOL_TILE_RADIUS = 5 * SCALE
 const SYMBOL_TILE_GAP = 6 * SCALE
-/** At the narrowest allowed window (view scale 0.8) this is about 22 CSS px, still easy to read. */
-const SYMBOL_FONT_SIZE = 14 * SCALE
+/** At the narrowest allowed window (view scale 0.8) this is about 26 CSS px, still easy to read. */
+const SYMBOL_FONT_SIZE = 16 * SCALE
 const SYMBOL_FONT = `bold ${SYMBOL_FONT_SIZE}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
 const TARGET_TILE_SCALE = 1.2
 const TARGET_OUTLINE_WIDTH = 1.5 * SCALE
@@ -332,6 +333,7 @@ export function SyntaxRushCanvas() {
         correctKeys += 1
         combo += 1
         store.setCombo(combo)
+        playBlip(combo)
       } else if (result.kind === 'progress') {
         // A correct letter inside a word: counts for WPM, the combo waits for the whole word.
         obstacles = result.obstacles
