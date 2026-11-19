@@ -3,6 +3,7 @@
 **Date**: 2026-11-18
 **Status**: Accepted
 **Amended by**: [0003](../0003-syntax-rush-word-obstacles/index.md) (word obstacles; Accepted, not built yet)
+**Amended**: 2026-11-19, Play button swap (AC-1, the menu notes, value sourcing, build plan task 12; reasoning in rationale.md, H)
 
 ## Summary
 
@@ -18,7 +19,10 @@ Syntax Rush is a second game mode next to Classic Runner. Bugs walk toward the m
 **Acceptance criteria**:
 
 Mode select and gating
-- **AC-1**: The main menu offers Syntax Rush after the existing Play button. Play still starts Classic Runner, keeps its autofocus, and Space or Enter on a fresh menu still starts Classic Runner. The Syntax Rush button has no autofocus.
+- **AC-1** (amended 2026-11-19): The main menu has one Play button (autofocused) and one secondary button below it (no autofocus). Which mode Play starts follows the AC-2 gate, read live through `useCanPlaySyntaxRush()`:
+  - Gate passes (desktop): Play starts Syntax Rush, so Space or Enter on a fresh menu starts Syntax Rush. The secondary button is "Classic Runner", always enabled, and starts Classic Runner.
+  - Gate fails (phone, tablet, narrow window): Play starts Classic Runner, exactly as before, so Space or Enter on a fresh menu starts Classic Runner. The secondary button is the gated "Syntax Rush" button of AC-2 (`aria-disabled`, with its note).
+  - Play never tries to start Syntax Rush on a device that fails the gate. If the gate changes while the menu is open (a resize), the menu swaps live.
 - **AC-2**: Syntax Rush can only be started when the device has a fine pointer with hover (`(hover: hover) and (pointer: fine)`) and the window is at least `SYNTAX_MIN_WIDTH` (1024) CSS px wide (`window.innerWidth`, which shrinks with browser zoom, as intended). Otherwise the Syntax Rush button on the menu, and Play Again on the Syntax Rush Game Over screen, are shown with `aria-disabled="true"`, ignore clicks, and point (`aria-describedby`) to the note "Syntax Rush needs a keyboard. Try it on a computer." The check updates live on resize and on media query change. A run already in progress is never stopped by the gate (its timing does not depend on window size, see AC-7).
 - **AC-3**: Classic Runner is unchanged. Not edited: `GameCanvas.tsx`, `Hud.tsx`, `GameOverScreen.tsx`, `ScreenFrame.tsx`, `components/Button.tsx`, `components/ScoreBadge.tsx`, `engine/physics.ts`, `engine/spawner.ts`, `engine/collision.ts`, `engine/score.ts`, `engine/terrain.ts`, `engine/viewport.ts`. Same storage key and best score. Existing tests pass with no line changed or deleted; new tests are additions only. Shared files only gain additions: `index.css` gains only `--color-danger`, `icons.tsx` only `HeartIcon`, `constants/game.ts` only an appended block; the one changed existing line is `startGame` also setting `mode: 'classic'`.
 
@@ -151,7 +155,10 @@ Key handling (window `keydown`, between frames; `destroyed` changes here, so the
 **UI pieces**:
 - `SyntaxRushHud.tsx`: score, Syntax Rush best, hearts (`HeartIcon`, wrapper `aria-label="Lives: N"`), combo ("x7", hidden at 0), and a pause button that blurs itself after a click, as Classic's does. Each value is its own tiny component with its own selector, as in `Hud.tsx`. Its own pause panel: Resume (autofocused) and Quit to Menu, with the line "Press Esc to resume" (no "or P").
 - `SyntaxRushGameOver.tsx`: built on `ScreenFrame`, `Button`, `ScoreBadge` (unchanged); score, Syntax Rush best, WPM, accuracy ("–" when `null`, and the whole stats block shows "–" if `lastStats` is `null`); its own `INPUT_LOCK_MS = 400`; no autofocus; Play Again gated (AC-2).
-- `MainMenu.tsx` additions, in DOM order after Play: a secondary "Syntax Rush" button (no autofocus, gated), a line "Syntax Rush best: N", and a hint "Type the key on each bug. Esc pauses." plus the gate note when it applies. "High Score" keeps meaning Classic.
+- `MainMenu.tsx` (amended 2026-11-19): two layouts, chosen by `useCanPlaySyntaxRush()` (AC-1). Each mode's best score and hint travel with whichever button starts that mode.
+  - Gate passes: Play (Syntax Rush), then a "Syntax Rush Best" badge and the hint "Type the letter, symbol or word on each bug. Esc pauses." (0003 AC-17), then a secondary "Classic Runner · Best N" button described by the hint "Space, ↑ or tap to jump".
+  - Gate fails: Play (Classic), then the "High Score" badge (Classic best) and the hint "Space, ↑ or tap to jump", then the secondary "Syntax Rush · Best N" button, `aria-disabled`, described by the gate note.
+  - "High Score" is shown only in the gate fails layout and always means Classic.
 - `useCanPlaySyntaxRush()` in `src/features/game/useCanPlaySyntaxRush.ts`: `useSyncExternalStore`, subscribed to `resize` and to the media query's `change`; returns `meetsSyntaxGate(fineHover, window.innerWidth)`; if `window.matchMedia` is not a function it treats `fineHover` as false.
 
 **Value sourcing**:
@@ -176,6 +183,7 @@ Key handling (window `keydown`, between frames; `destroyed` changes here, so the
 | Game Over stats | WPM, accuracy | store `lastStats`, set by `endSyntaxGame` |
 | Syntax best | number | `getSyntaxBestScore()` at store creation; `setSyntaxBestScore()` when beaten |
 | Desktop gate | pointer kind, width | `matchMedia('(hover: hover) and (pointer: fine)')` and `window.innerWidth`, through `useCanPlaySyntaxRush()` |
+| Menu | which mode Play starts, which button is secondary | the same `useCanPlaySyntaxRush()` value: true → Syntax Rush, false → Classic Runner |
 
 **New constants** (`constants/game.ts`, appended as one block `// --- Syntax Rush (spec 0002) ---`, placeholders to tune). The existing file has broken characters in some older comments; append ASCII only and keep the file's current encoding and line endings, so the diff shows only the new lines.
 - `SYNTAX_VIEW_WIDTH = 1280` (world px)
@@ -235,6 +243,7 @@ No build approach is recorded for this project, so this follows thin end to end 
 9. Final menu: gated Syntax Rush button after Play, its best, hint and note, `useCanPlaySyntaxRush()`; gate Play Again too, satisfies **AC-1**, **AC-2**.
 10. Check Classic Runner: full test suite with no edited lines, one Classic run on desktop and phone width, `git diff --stat` shows none of the AC-3 files, satisfies **AC-3**.
 11. Play on a 1024 px window, a 1366 × 768 laptop and a wide monitor; tune speeds, spawn gaps, letter chances and grace if the feel is off, satisfies **AC-7**, **AC-19**.
+12. [x] (amendment 2026-11-19) Play button swap in `MainMenu.tsx`: Play starts the mode the gate allows, the other mode becomes the secondary button, best and hint travel with their button; gate logic unchanged, satisfies amended **AC-1**.
 
 ## Consequences
 
@@ -250,6 +259,7 @@ No build approach is recorded for this project, so this follows thin end to end 
 - On a non Latin layout, letters work but some code symbols are on other keys or unreachable; the hint tells the player, but the mode is best on an English layout.
 - The store grows by five fields that only Syntax Rush uses.
 - Phone and tablet players see a mode they cannot play.
+- (2026-11-19) On desktop, Space or Enter on a fresh menu now starts Syntax Rush, so returning Classic players need one extra click. Play's mode also flips live if a desktop window is shrunk below 1024 px, which can surprise someone resizing while on the menu.
 
 **Neutral**:
 - No new dependency.

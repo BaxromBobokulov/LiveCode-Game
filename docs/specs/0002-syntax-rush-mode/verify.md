@@ -1,4 +1,4 @@
-# Verify: Syntax Rush typing mode · spec 0002 · updated 2026-11-18
+# Verify: Syntax Rush typing mode · spec 0002 · updated 2026-11-19
 _Steps derived from spec 0002 acceptance criteria. `/check verify` runs these; `/test` locks the durable ones._
 
 Tip: run the dev server (`npm run dev`) on a desktop window at least 1024 px wide. A real hand is better than browser automation here: automated browsers throttle animation frames, which makes the game crawl.
@@ -6,8 +6,11 @@ Tip: run the dev server (`npm run dev`) on a desktop window at least 1024 px wid
 ## UI / manual
 
 Menu and gating
-- [x] Open the app fresh → Play has focus; press Enter → Classic Runner starts (no hearts in the HUD, background shapes visible) → AC-1
-- [x] Back on the menu, the Syntax Rush button sits after Play's block, shows "Best N", with the hint "Type the key on each bug. Esc pauses." → AC-1
+_The two AC-1 steps below were replaced on 2026-11-19 for the Play button swap (amended AC-1). The old steps expected Play to start Classic Runner on desktop._
+- [x] On a desktop window at least 1024 px wide, open the app fresh → Play has focus, the badge under it reads "Syntax Rush Best", the hint reads "Type the letter, symbol or word on each bug. Esc pauses."; press Enter → Syntax Rush starts (hearts in the HUD) → AC-1
+- [x] Back on the menu, the secondary "Classic Runner · Best N" button is enabled with the hint "Space, ↑ or tap to jump"; click it → Classic Runner starts (no hearts) → AC-1
+- [x] At phone width (below 1024 px, or a phone emulator), open the app fresh → Play has focus, the badge reads "High Score" (Classic best); press Enter → Classic Runner starts; the secondary button is the faded Syntax Rush button with the keyboard note → AC-1, AC-2
+- [x] On the desktop menu, shrink the window below 1024 px → the menu swaps to the phone layout live; widen again → it swaps back → AC-1
 - [x] Shrink the window below 1024 px wide (or use a phone emulator) → the Syntax Rush button fades, clicking it does nothing, the note reads "Syntax Rush needs a keyboard. Try it on a computer."; widen again → it enables live → AC-2
 - [x] On a 1366 × 768 laptop window, the whole menu fits without scrolling → AC-1
 - [ ] On a phone width, Classic Runner still plays exactly as before (tap to jump, platforms, dust) → AC-3

@@ -8,7 +8,7 @@ LiveCode Game has one mode today, Classic Runner: the mascot runs, you jump over
 
 The forces at play:
 - **AGENTS.md rules.** Engine code is pure TypeScript with no DOM or React, works in px and seconds, returns new objects, and takes `random` as an argument. One Zustand store, read with selectors, updated at low frequency. A mechanic should be understandable from one engine file.
-- **Classic Runner must not move.** It is the default, it is mobile friendly, and it is covered by tests. The safest way to honor "no change" is to not edit its files at all.
+- **Classic Runner must not move.** It was the default when this spec was written (since 2026-11-19 it is the default only on devices that fail the gate, see H), it is mobile friendly, and it is covered by tests. The safest way to honor "no change" is to not edit its files at all.
 - **The existing loop is one large closure.** `GameCanvas.tsx` (about 700 lines) owns scenery, physics, platforms, dust, and drawing in one `useEffect`. Branching it by mode would put Syntax Rush code inside Classic's file.
 - **Typing is slower than jumping.** Finding a shifted symbol takes a beginner well over the 0.5 s Classic gives on a phone, so Syntax Rush needs its own, slower speed curve and a guaranteed reaction window.
 - **Keyboards differ.** Many students do not use a US layout. `{` is AltGr+7 on German keyboards, and quote keys are dead keys on US International.
@@ -94,6 +94,8 @@ Smaller calls made here, each with the runner up:
 - **Bug sprite only for obstacles.** The brace tile would visually clash with the symbol label ("a brace showing a semicolon"). Runner up: reuse both sprites.
 - **Red edge flash, not full screen, rate limited to 3 per second.** Stays inside the WCAG 2.3.1 three flashes guideline even when mashing. Runner up: a red tint on the mascot only.
 - **New `--color-danger` token** rather than a hardcoded red, per the design token rule.
+
+**H. Play button swap (amended 2026-11-19).** The original AC-1 kept Play on Classic Runner so the menu stayed exactly as before for existing players. After shipping, the user decided the new mode should be the headline on computers: Play starts Syntax Rush wherever the gate passes, and Classic Runner moves to a clearly labelled secondary button. On devices that fail the gate, Play still starts Classic Runner, because Play must never point at a mode the device cannot run. Both layouts read the same `useCanPlaySyntaxRush()` value, so no new gating rule was added and Classic's own files stay untouched (AC-3 holds; only `MainMenu.tsx` changed). Each mode's best score and hint move with its button, so the badge under Play always matches the mode Play starts. Accepted cost: on desktop, Space or Enter on a fresh menu now starts Syntax Rush, and the menu swaps live if the window crosses 1024 px. Runner up: keep the original order (Classic as Play everywhere), which is safer for existing players but hides the newer mode behind a secondary button on the devices that can play it.
 
 ## Cross check (2026-11-18)
 
