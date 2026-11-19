@@ -4,6 +4,8 @@ import {
   GRACE_SLOW_FACTOR,
   LETTER_CHANCE_TIER_1,
   LETTER_CHANCE_TIER_2,
+  MASCOT_SIZE,
+  MASCOT_X,
   OBSTACLE_SIZES,
   SYNTAX_BASE_SPEED,
   SYNTAX_LETTERS,
@@ -16,12 +18,25 @@ import {
   SYNTAX_SYMBOLS_TIER_2,
   SYNTAX_TIER_2_SCORE,
   SYNTAX_VIEW_WIDTH,
+  SYNTAX_MIN_VISIBLE_TIME,
+  SYNTAX_WORDS_TIER_1,
+  SYNTAX_WORDS_TIER_2,
+  WORD_CHANCE_TIER_1,
+  WORD_CHANCE_TIER_2,
+  WORD_CHAR_WIDTH,
+  WORD_LETTER_TIME,
+  WORD_SPAWN_GAP_PER_LETTER,
+  WORD_SPEED_FACTOR,
+  WORD_TILE_PADDING,
 } from '../constants/game'
 import { calculateScore } from './score'
-import type { KeyClass, KeyInput, SymbolObstacle, TypingStats } from './types'
+import type { KeyClass, KeyInput, SymbolObstacle, TypeResult, TypingStats } from './types'
 
 // Syntax Rush (spec 0002): bugs walk toward the mascot, each carrying one
 // character. Typing that character destroys the nearest bug that shows it.
+// Spec 0003 adds word bugs: a keyword typed letter by letter, slower than the
+// single characters. Only one word is "active" (partly typed) at a time, and
+// it gets the next key first (see typeChar).
 // Everything here is pure: the canvas passes in plain values and gets plain
 // values back. Randomness comes in as a `random` argument (defaults to
 // Math.random), so tests can pass a fixed one.
@@ -53,6 +68,59 @@ export function pickSymbol(
   const pool = random() < letterChance(score) ? SYNTAX_LETTERS : codeSymbols(score)
   const choices = pool.filter((symbol) => symbol !== previous)
   return choices[Math.floor(random() * choices.length)]
+}
+
+// --- Words (spec 0003) ---
+
+/** True when an obstacle carries a whole word rather than one character. */
+export function isWord(symbol: string): boolean {
+  return symbol.length > 1
+}
+
+/** The words unlocked at this full score. */
+export function wordPool(score: number): readonly string[] {
+  return score >= SYNTAX_TIER_2_SCORE ? [...SYNTAX_WORDS_TIER_1, ...SYNTAX_WORDS_TIER_2] : SYNTAX_WORDS_TIER_1
+}
+
+/** Chance that the next spawn is a word rather than a single character. */
+export function wordChance(score: number): number {
+  return score >= SYNTAX_TIER_2_SCORE ? WORD_CHANCE_TIER_2 : WORD_CHANCE_TIER_1
+}
+
+/**
+ * Picks a word for a new bug: never `lastWord`, and never a word starting with
+ * the same letter as a word already on screen (visible or not), so the first
+ * letter you type always points at one word. If every first letter is taken,
+ * only the "not lastWord" rule applies. Single characters are not considered.
+ */
+export function pickWord(
+  score: number,
+  lastWord: string | null,
+  onScreen: readonly SymbolObstacle[],
+  random: () => number = Math.random,
+): string {
+  const pool = wordPool(score).filter((word) => word !== lastWord)
+  const taken = new Set(onScreen.filter((o) => isWord(o.symbol)).map((o) => o.symbol[0]))
+  const spread = pool.filter((word) => !taken.has(word[0]))
+  const choices = spread.length > 0 ? spread : pool
+  return choices[Math.floor(random() * choices.length)]
+}
+
+/**
+ * Picks what a new bug carries: first rolls word or single by the tier's word
+ * chance, then picks a word (pickWord) or a single character (pickSymbol,
+ * never repeating `lastSymbol`, the last single spawned).
+ */
+export function pickSpawn(
+  score: number,
+  lastSymbol: string | null,
+  lastWord: string | null,
+  onScreen: readonly SymbolObstacle[],
+  random: () => number = Math.random,
+): string {
+  return random() < wordChance(score)
+    ? pickWord(score, lastWord, onScreen, random)
+    : pickSymbol(score, lastSymbol, random)
 }
 
 const LATIN_LETTER_CODE = /^Key([A-Z])$/
@@ -102,6 +170,12 @@ export function pickSyntaxSpawnInterval(random: () => number = Math.random): num
   return SYNTAX_SPAWN_INTERVAL_MIN + random() * (SYNTAX_SPAWN_INTERVAL_MAX - SYNTAX_SPAWN_INTERVAL_MIN)
 }
 
+/** The gap after spawning `symbol`: a normal gap, plus extra time per letter after a word. */
+export function spawnGapAfter(symbol: string, random: () => number = Math.random): number {
+  const extra = isWord(symbol) ? WORD_SPAWN_GAP_PER_LETTER * symbol.length : 0
+  return pickSyntaxSpawnInterval(random) + extra
+}
+
 /** How many CSS px one world px takes, so the play area is always SYNTAX_VIEW_WIDTH wide. */
 export function syntaxViewScale(cssWidth: number): number {
   return cssWidth / SYNTAX_VIEW_WIDTH
@@ -120,6 +194,7 @@ export function spawnSymbolObstacle(id: number, groundY: number, symbol: string)
   return {
     id,
     symbol,
+    typed: 0,
     x: SYNTAX_VIEW_WIDTH,
     y: groundY - BUG_SIZE.height,
     width: BUG_SIZE.width,
@@ -127,15 +202,59 @@ export function spawnSymbolObstacle(id: number, groundY: number, symbol: string)
   }
 }
 
-/** Scrolls every bug left by `distance` px and keeps it standing on the ground line. */
+/** Width of a word's tile in px: one fixed cell per letter, plus padding on both sides. */
+export function wordLabelWidth(letters: number): number {
+  return letters * WORD_CHAR_WIDTH + 2 * WORD_TILE_PADDING
+}
+
+/**
+ * The rightmost px an obstacle covers. A word tile can be wider than its bug
+ * (it is centered on the bug), so a long word sticks out on both sides.
+ */
+export function rightEdge(obstacle: SymbolObstacle): number {
+  const bugEdge = obstacle.x + obstacle.width
+  if (!isWord(obstacle.symbol)) return bugEdge
+  return Math.max(bugEdge, obstacle.x + obstacle.width / 2 + wordLabelWidth(obstacle.symbol.length) / 2)
+}
+
+/** How far a word's bug travels from the moment it is fully visible until it touches the mascot, in px. */
+export function wordVisibleDistance(letters: number): number {
+  const overhang = Math.max(BUG_SIZE.width, BUG_SIZE.width / 2 + wordLabelWidth(letters) / 2)
+  return SYNTAX_VIEW_WIDTH - overhang - (MASCOT_X + MASCOT_SIZE)
+}
+
+/**
+ * The fastest a word of this length may move, in px/s, so it stays fully
+ * visible for SYNTAX_MIN_VISIBLE_TIME plus WORD_LETTER_TIME per letter.
+ */
+export function wordSpeedCap(letters: number): number {
+  return wordVisibleDistance(letters) / (SYNTAX_MIN_VISIBLE_TIME + letters * WORD_LETTER_TIME)
+}
+
+/**
+ * How fast this bug moves after `elapsedTime` world seconds, in px/s. Single
+ * characters move with the world (syntaxSpeed); words move at a share of it,
+ * never above their length cap.
+ */
+export function obstacleSpeed(symbol: string, elapsedTime: number): number {
+  const speed = syntaxSpeed(elapsedTime)
+  return isWord(symbol) ? Math.min(speed * WORD_SPEED_FACTOR, wordSpeedCap(symbol.length)) : speed
+}
+
+/** Moves every bug left at its own speed for `worldDt` seconds and keeps it standing on the ground line. */
 export function advanceSymbolObstacles(
   obstacles: readonly SymbolObstacle[],
-  distance: number,
+  elapsedTime: number,
+  worldDt: number,
   groundY: number,
 ): SymbolObstacle[] {
   return (
     obstacles
-      .map((obstacle) => ({ ...obstacle, x: obstacle.x - distance, y: groundY - obstacle.height }))
+      .map((obstacle) => ({
+        ...obstacle,
+        x: obstacle.x - obstacleSpeed(obstacle.symbol, elapsedTime) * worldDt,
+        y: groundY - obstacle.height,
+      }))
       // Bugs always reach the mascot first; this only guards against a leftover one.
       .filter((obstacle) => obstacle.x + obstacle.width > 0)
   )
@@ -143,9 +262,9 @@ export function advanceSymbolObstacles(
 
 // --- Targeting and typing ---
 
-/** Bugs fully inside the play area. Only these show their character and can be typed. */
+/** Bugs fully inside the play area (tile included). Only these show their tile and can be typed. */
 export function visibleObstacles(obstacles: readonly SymbolObstacle[]): SymbolObstacle[] {
-  return obstacles.filter((obstacle) => obstacle.x + obstacle.width <= SYNTAX_VIEW_WIDTH)
+  return obstacles.filter((obstacle) => rightEdge(obstacle) <= SYNTAX_VIEW_WIDTH)
 }
 
 /** The visible bug nearest the mascot (smallest x), drawn highlighted. Null when none is visible. */
@@ -157,13 +276,68 @@ export function findTarget(obstacles: readonly SymbolObstacle[]): SymbolObstacle
   return target
 }
 
+/** The character this obstacle waits for: its own character, or a word's next untyped letter. */
+export function nextChar(obstacle: SymbolObstacle): string {
+  return obstacle.symbol[obstacle.typed]
+}
+
+/** The word partly typed right now (at most one), or null. */
+export function activeWord(obstacles: readonly SymbolObstacle[]): SymbolObstacle | null {
+  return obstacles.find((obstacle) => obstacle.typed > 0) ?? null
+}
+
+/** The obstacle drawn locked (bigger, outlined): the active word if any, else the nearest visible bug. */
+export function lockTarget(obstacles: readonly SymbolObstacle[]): SymbolObstacle | null {
+  return activeWord(obstacles) ?? findTarget(obstacles)
+}
+
 /**
- * Which bug a typed character destroys: the nearest visible one whose
- * character matches (the target if it matches). Returns its id, or null for a wrong key.
+ * What a typed character does (spec 0003, AC-8), in this order:
+ * 1. It is the active word's next letter: the word moves on, and is destroyed on its last letter.
+ * 2. Otherwise the nearest visible match among the singles and the untouched
+ *    words (while a word is active, only words nearer than it). A single is
+ *    destroyed; a word becomes active and the old active word starts over.
+ * 3. Otherwise it is a miss, and nothing changes (a typo never costs progress).
+ * "Nearest" is the smallest bug x; on a tie the first in the list wins. The
+ * input is never changed: the result is a new list in the same order.
  */
-export function resolveKey(char: string, obstacles: readonly SymbolObstacle[]): number | null {
-  const matching = visibleObstacles(obstacles).filter((obstacle) => matchesSymbol(char, obstacle.symbol))
-  return findTarget(matching)?.id ?? null
+export function typeChar(char: string, obstacles: readonly SymbolObstacle[]): TypeResult {
+  const active = activeWord(obstacles)
+
+  // 1. The active word gets the key first. It needs no visibility check: it
+  // was visible when it started and only moves left in a fixed view.
+  if (active && matchesSymbol(char, nextChar(active))) {
+    if (active.typed + 1 === active.symbol.length) {
+      return { kind: 'destroyed', obstacle: active, obstacles: obstacles.filter((o) => o !== active) }
+    }
+    return {
+      kind: 'progress',
+      obstacles: obstacles.map((o) => (o === active ? { ...o, typed: o.typed + 1 } : o)),
+    }
+  }
+
+  // 2. The nearest other match. While a word is active, a farther word can not take over.
+  let match: SymbolObstacle | null = null
+  for (const obstacle of visibleObstacles(obstacles)) {
+    if (obstacle === active) continue
+    if (active && isWord(obstacle.symbol) && obstacle.x >= active.x) continue
+    if (!matchesSymbol(char, nextChar(obstacle))) continue
+    if (!match || obstacle.x < match.x) match = obstacle
+  }
+  if (!match) return { kind: 'miss' }
+
+  const chosen = match
+  if (!isWord(chosen.symbol)) {
+    return { kind: 'destroyed', obstacle: chosen, obstacles: obstacles.filter((o) => o !== chosen) }
+  }
+  return {
+    kind: 'progress',
+    obstacles: obstacles.map((o) => {
+      if (o === chosen) return { ...o, typed: 1 }
+      if (o === active) return { ...o, typed: 0 }
+      return o
+    }),
+  }
 }
 
 // --- Grace, score and stats ---
@@ -180,9 +354,12 @@ export function graceSpeedFactor(graceLeft: number): number {
   return Math.min(1, Math.max(GRACE_SLOW_FACTOR, factor))
 }
 
-/** Score: the same distance score as Classic, plus COIN_VALUE for every bug destroyed. */
-export function syntaxScore(elapsedTime: number, destroyed: number): number {
-  return calculateScore(elapsedTime) + destroyed * COIN_VALUE
+/**
+ * Score: the same distance score as Classic, plus COIN_VALUE for every
+ * character of a destroyed bug (a single adds 10, `function` adds 80).
+ */
+export function syntaxScore(elapsedTime: number, destroyedLetters: number): number {
+  return calculateScore(elapsedTime) + destroyedLetters * COIN_VALUE
 }
 
 /**

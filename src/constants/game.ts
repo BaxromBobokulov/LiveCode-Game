@@ -152,11 +152,11 @@ export const SYNTAX_SPEED_INCREASE_RATE = 8 * SCALE
  */
 export const SYNTAX_MAX_SPEED = 420 * SCALE
 
-/** Shortest gap between Syntax Rush spawns, in seconds. */
-export const SYNTAX_SPAWN_INTERVAL_MIN = 0.8
+/** Shortest gap between Syntax Rush spawns, in seconds (spec 0003: closer than before). */
+export const SYNTAX_SPAWN_INTERVAL_MIN = 0.7
 
 /** Longest gap between Syntax Rush spawns, in seconds. A steady typing pace, no long empty stretches. */
-export const SYNTAX_SPAWN_INTERVAL_MAX = 1.5
+export const SYNTAX_SPAWN_INTERVAL_MAX = 1.3
 
 /** The shortest time a bug must be fully visible before it reaches the mascot at top speed, in seconds. */
 export const SYNTAX_MIN_VISIBLE_TIME = 1.0
@@ -199,3 +199,58 @@ export const WRONG_FLASH_DURATION = 0.15
 
 /** Shortest time between two flash starts, in seconds, so mashing never flashes more than 3 times a second. */
 export const WRONG_FLASH_MIN_GAP = 0.34
+
+// --- Syntax Rush word obstacles (spec 0003) ---
+// Some bugs carry a whole keyword, typed letter by letter. Letters only, so
+// every layout that works for single letters works for words too.
+
+/** Words from the start of a run: short ones, 2 to 5 letters. */
+export const SYNTAX_WORDS_TIER_1: readonly string[] = [
+  'if',
+  'for',
+  'let',
+  'var',
+  'else',
+  'true',
+  'null',
+  'loop',
+  'const',
+  'while',
+]
+
+/** Words added once the run reaches SYNTAX_TIER_2_SCORE: longer ones, up to 8 letters. */
+export const SYNTAX_WORDS_TIER_2: readonly string[] = [
+  'array',
+  'class',
+  'break',
+  'return',
+  'string',
+  'import',
+  'boolean',
+  'function',
+]
+
+/** Chance that a spawn below SYNTAX_TIER_2_SCORE is a word (otherwise a single character). */
+export const WORD_CHANCE_TIER_1 = 0.2
+
+/** Chance that a spawn from SYNTAX_TIER_2_SCORE on is a word. */
+export const WORD_CHANCE_TIER_2 = 0.3
+
+/** Words walk at this share of the single character speed, before their length cap. */
+export const WORD_SPEED_FACTOR = 0.5
+
+/**
+ * Extra reading and typing time a word gets per letter, in seconds, on top of
+ * SYNTAX_MIN_VISIBLE_TIME. A word's speed is capped so it is always fully
+ * visible for at least that long: `function` gets 1.0 + 8 * 0.4 = 4.2 s.
+ */
+export const WORD_LETTER_TIME = 0.4
+
+/** Extra gap after a word spawns, in seconds per letter, so a long word does not arrive in a crowd. */
+export const WORD_SPAWN_GAP_PER_LETTER = 0.3
+
+/** Width of one letter cell in a word tile, in px. The tile is drawn cell by cell, so this is exact. */
+export const WORD_CHAR_WIDTH = 9 * SCALE
+
+/** Space between the tile's edge and its first or last letter cell, in px. */
+export const WORD_TILE_PADDING = 6 * SCALE

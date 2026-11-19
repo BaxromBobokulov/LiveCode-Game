@@ -2,6 +2,7 @@
 
 **Date**: 2026-11-18
 **Status**: Accepted
+**Amended by**: [0003](../0003-syntax-rush-word-obstacles/index.md) (word obstacles; Accepted, not built yet)
 
 ## Summary
 

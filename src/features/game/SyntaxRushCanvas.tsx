@@ -3,17 +3,20 @@ import { checkCollision } from '../../engine/collision'
 import {
   advanceSymbolObstacles,
   classifyKey,
-  findTarget,
   graceSpeedFactor,
-  pickSymbol,
+  isWord,
+  lockTarget,
+  pickSpawn,
   pickSyntaxSpawnInterval,
-  resolveKey,
+  spawnGapAfter,
   spawnSymbolObstacle,
   syntaxScore,
   syntaxSpeed,
   syntaxViewScale,
+  typeChar,
   typingStats,
   visibleObstacles,
+  wordLabelWidth,
 } from '../../engine/syntaxRush'
 import type { Entity, SymbolObstacle } from '../../engine/types'
 import { useGameStore } from '../../store/gameStore'
@@ -24,6 +27,7 @@ import {
   SCALE,
   SYNTAX_LIVES,
   SYNTAX_VIEW_WIDTH,
+  WORD_CHAR_WIDTH,
   WRONG_FLASH_DURATION,
   WRONG_FLASH_MIN_GAP,
 } from '../../constants/game'
@@ -68,6 +72,14 @@ const SYMBOL_FONT_SIZE = 14 * SCALE
 const SYMBOL_FONT = `bold ${SYMBOL_FONT_SIZE}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
 const TARGET_TILE_SCALE = 1.2
 const TARGET_OUTLINE_WIDTH = 1.5 * SCALE
+/** Word tiles (spec 0003): letters already typed fade to this opacity. */
+const TYPED_LETTER_ALPHA = 0.45
+/** The bar under a locked word's next letter. */
+const CARET_HEIGHT = 1.5 * SCALE
+const CARET_INSET = 2 * SCALE
+const CARET_BOTTOM = 4 * SCALE
+/** Gap between the locked tile and a tile lifted above it (spec 0003, AC-10 amendment). */
+const TILE_LIFT_GAP = 4 * SCALE
 
 // --- Particle bursts (same fixed pool pattern as Classic's landing dust) ---
 /** How many bursts can play at once; a new one reuses the oldest. */
@@ -151,6 +163,7 @@ export function SyntaxRushCanvas() {
       accent: readToken('--color-accent', '#3b82f6'),
       gold: readToken('--color-gold', '#fbbf24'),
       muted: readToken('--color-muted', '#a5b4d4'),
+      ink: readToken('--color-ink', '#f8fafc'),
       danger: readToken('--color-danger', '#ef4444'),
     }
     const flashAlpha = prefersReducedMotion() ? FLASH_ALPHA_REDUCED : FLASH_ALPHA
@@ -181,7 +194,9 @@ export function SyntaxRushCanvas() {
     })
     let obstacles: SymbolObstacle[] = []
     let nextId = 0
+    /** The last single character spawned (never a word), so a single never repeats. */
     let lastSymbol: string | null = null
+    let lastWord: string | null = null
     /** World seconds: slows down during grace. Drives speed, distance score and the running bob. */
     let elapsedTime = 0
     /** Real seconds of play, pauses excluded. Drives WPM. */
@@ -190,7 +205,8 @@ export function SyntaxRushCanvas() {
     let spawnInterval = pickSyntaxSpawnInterval()
     let lives = SYNTAX_LIVES
     let combo = 0
-    let destroyed = 0
+    /** Characters of every destroyed bug (a word counts all its letters). Drives the score. */
+    let destroyedLetters = 0
     let correctKeys = 0
     let wrongKeys = 0
     /** Real seconds of grace left after a lost life. */
@@ -219,13 +235,14 @@ export function SyntaxRushCanvas() {
       obstacles = []
       nextId = 0
       lastSymbol = null
+      lastWord = null
       elapsedTime = 0
       activeTime = 0
       timeSinceLastSpawn = 0
       spawnInterval = pickSyntaxSpawnInterval()
       lives = SYNTAX_LIVES
       combo = 0
-      destroyed = 0
+      destroyedLetters = 0
       correctKeys = 0
       wrongKeys = 0
       graceLeft = 0
@@ -305,15 +322,22 @@ export function SyntaxRushCanvas() {
       // Nothing to type yet: not a mistake, just ignored.
       if (visibleObstacles(obstacles).length === 0) return
 
-      const id = resolveKey(keyClass.char, obstacles)
+      // Spec 0003: the active word gets the key first, then the nearest match.
+      const result = typeChar(keyClass.char, obstacles)
       const store = useGameStore.getState()
-      if (id !== null) {
-        removeObstacle(id, colors.accent)
-        destroyed += 1
+      if (result.kind === 'destroyed') {
+        obstacles = result.obstacles
+        burstAt(result.obstacle, colors.accent)
+        destroyedLetters += result.obstacle.symbol.length
         correctKeys += 1
         combo += 1
         store.setCombo(combo)
+      } else if (result.kind === 'progress') {
+        // A correct letter inside a word: counts for WPM, the combo waits for the whole word.
+        obstacles = result.obstacles
+        correctKeys += 1
       } else {
+        // A wrong key: no life lost, and a word keeps the letters already typed.
         wrongKeys += 1
         combo = 0
         store.setCombo(0)
@@ -338,8 +362,10 @@ export function SyntaxRushCanvas() {
       // 2. Move the world.
       const groundY = getGroundY()
       const mascot = mascotBox(groundY)
+      // The world (ground, clouds, particles) moves at the single character speed;
+      // each bug moves at its own speed (words are slower).
       const distance = syntaxSpeed(elapsedTime) * worldDt
-      obstacles = advanceSymbolObstacles(obstacles, distance, groundY)
+      obstacles = advanceSymbolObstacles(obstacles, elapsedTime, worldDt, groundY)
       groundScroll = (groundScroll + distance) % TICK_SPACING
       cloudScroll += distance * PARALLAX_RATIO
       const drag = Math.max(0, 1 - BURST_DRAG * worldDt)
@@ -354,13 +380,14 @@ export function SyntaxRushCanvas() {
       }
 
       // 3. Spawn.
-      const score = syntaxScore(elapsedTime, destroyed)
+      const score = syntaxScore(elapsedTime, destroyedLetters)
       timeSinceLastSpawn += worldDt
       if (timeSinceLastSpawn >= spawnInterval) {
-        const symbol = pickSymbol(score, lastSymbol)
+        const symbol = pickSpawn(score, lastSymbol, lastWord, obstacles)
         obstacles.push(spawnSymbolObstacle(nextId++, groundY, symbol))
-        lastSymbol = symbol
-        spawnInterval = pickSyntaxSpawnInterval()
+        if (isWord(symbol)) lastWord = symbol
+        else lastSymbol = symbol
+        spawnInterval = spawnGapAfter(symbol)
         timeSinceLastSpawn = 0
       }
 
@@ -437,16 +464,44 @@ export function SyntaxRushCanvas() {
       ctx.drawImage(bugImage, obstacle.x + (obstacle.width - width) / 2, obstacle.y + obstacle.height - height, width, height)
     }
 
-    /** The character tile above a bug. The target is bigger, outlined and gold, so color is never the only cue. */
-    const drawTile = (obstacle: SymbolObstacle, isTarget: boolean) => {
-      const size = SYMBOL_TILE_SIZE * (isTarget ? TARGET_TILE_SCALE : 1)
-      const centerX = obstacle.x + obstacle.width / 2
-      const bottom = obstacle.y - SYMBOL_TILE_GAP
+    /**
+     * The tile above a bug: one character, or a word drawn one letter per
+     * fixed cell (so its width is exactly wordLabelWidth). The locked tile is
+     * bigger and outlined; in a locked word the typed letters fade and the
+     * next letter is gold with a caret under it, so color is never the only cue.
+     */
+    /** A tile's drawn size: square for a single, one cell per letter for a word, bigger when locked. */
+    const tileSize = (obstacle: SymbolObstacle, isLocked: boolean) => {
+      const extra = isLocked ? SYMBOL_TILE_SIZE * (TARGET_TILE_SCALE - 1) : 0
+      const base = isWord(obstacle.symbol) ? wordLabelWidth(obstacle.symbol.length) : SYMBOL_TILE_SIZE
+      return { width: base + extra, height: SYMBOL_TILE_SIZE + extra }
+    }
+
+    /** The center of the tile over this bug (tiles are centered on their bug). */
+    const tileCenter = (obstacle: SymbolObstacle) => obstacle.x + obstacle.width / 2
+
+    /**
+     * How far up to draw this tile so the locked tile never hides it: one row
+     * (the locked tile's height plus a gap) when they overlap sideways, else 0.
+     * Drawing only; typing, locking and collisions ignore it.
+     */
+    const liftFor = (obstacle: SymbolObstacle, locked: SymbolObstacle | null) => {
+      if (!locked || obstacle === locked) return 0
+      const lockedSize = tileSize(locked, true)
+      const overlap = (tileSize(obstacle, false).width + lockedSize.width) / 2
+      return Math.abs(tileCenter(obstacle) - tileCenter(locked)) < overlap ? lockedSize.height + TILE_LIFT_GAP : 0
+    }
+
+    const drawTile = (obstacle: SymbolObstacle, isLocked: boolean, lift = 0) => {
+      const word = isWord(obstacle.symbol)
+      const { width, height } = tileSize(obstacle, isLocked)
+      const centerX = tileCenter(obstacle)
+      const bottom = obstacle.y - SYMBOL_TILE_GAP - lift
       ctx.beginPath()
-      ctx.roundRect(centerX - size / 2, bottom - size, size, size, SYMBOL_TILE_RADIUS)
+      ctx.roundRect(centerX - width / 2, bottom - height, width, height, SYMBOL_TILE_RADIUS)
       ctx.fillStyle = colors.surface
       ctx.fill()
-      if (isTarget) {
+      if (isLocked) {
         ctx.lineWidth = TARGET_OUTLINE_WIDTH
         ctx.strokeStyle = colors.accent
         ctx.stroke()
@@ -454,8 +509,34 @@ export function SyntaxRushCanvas() {
       ctx.font = SYMBOL_FONT
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillStyle = isTarget ? colors.gold : colors.muted
-      ctx.fillText(obstacle.symbol, centerX, bottom - size / 2)
+      const textY = bottom - height / 2
+
+      if (!word) {
+        ctx.fillStyle = isLocked ? colors.gold : colors.muted
+        ctx.fillText(obstacle.symbol, centerX, textY)
+        return
+      }
+
+      const cellsLeft = centerX - (obstacle.symbol.length * WORD_CHAR_WIDTH) / 2
+      for (let i = 0; i < obstacle.symbol.length; i++) {
+        const cellCenter = cellsLeft + (i + 0.5) * WORD_CHAR_WIDTH
+        if (!isLocked) ctx.fillStyle = colors.muted
+        else if (i === obstacle.typed) ctx.fillStyle = colors.gold
+        else ctx.fillStyle = colors.ink
+        ctx.globalAlpha = isLocked && i < obstacle.typed ? TYPED_LETTER_ALPHA : 1
+        ctx.fillText(obstacle.symbol[i], cellCenter, textY)
+      }
+      ctx.globalAlpha = 1
+
+      if (isLocked) {
+        ctx.fillStyle = colors.gold
+        ctx.fillRect(
+          cellsLeft + obstacle.typed * WORD_CHAR_WIDTH + CARET_INSET,
+          bottom - CARET_BOTTOM - CARET_HEIGHT,
+          WORD_CHAR_WIDTH - CARET_INSET * 2,
+          CARET_HEIGHT,
+        )
+      }
     }
 
     const drawParticles = () => {
@@ -516,13 +597,20 @@ export function SyntaxRushCanvas() {
       drawClouds(width, groundY)
       drawGround(width, height, groundY)
 
-      const target = findTarget(obstacles)
       for (const obstacle of obstacles) drawBug(obstacle)
-      // Tiles only for bugs fully on screen: those are the only ones you can type.
-      for (const obstacle of visibleObstacles(obstacles)) drawTile(obstacle, obstacle === target)
-
       drawParticles()
       drawMascot(groundY)
+
+      // Tiles go over the mascot, so a word walking past it stays readable.
+      // Only bugs fully on screen get one (the only ones you can type), and
+      // the locked tile is drawn last, on top of any tile it overlaps.
+      const locked = lockTarget(obstacles)
+      for (const obstacle of visibleObstacles(obstacles)) {
+        // A tile the locked tile would cover is drawn one row up instead.
+        if (obstacle !== locked) drawTile(obstacle, false, liftFor(obstacle, locked))
+      }
+      if (locked) drawTile(locked, true)
+
       drawFlash(width, height)
       drawLayoutHint(width, groundY)
     }

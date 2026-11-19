@@ -34,7 +34,7 @@ function SyntaxRushOption() {
         </span>
       </Button>
       <p id="syntax-rush-note" className="text-sm text-muted">
-        {canPlay ? 'Type the key on each bug. Esc pauses.' : SYNTAX_GATE_NOTE}
+        {canPlay ? 'Type the letter, symbol or word on each bug. Esc pauses.' : SYNTAX_GATE_NOTE}
       </p>
     </div>
   )

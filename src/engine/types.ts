@@ -45,9 +45,20 @@ export type GameMode = 'classic' | 'syntax'
 export type SymbolObstacle = Obstacle & {
   /** Counter unique within a run, so a resolved key can name which bug to remove. */
   id: number
-  /** The one character shown above the bug (a lowercase letter or a code symbol). */
+  /**
+   * What is shown above the bug: one character (a lowercase letter or a code
+   * symbol), or a whole word of 2 to 8 lowercase letters (spec 0003).
+   */
   symbol: string
+  /** Letters of a word already typed. Always 0 for a single character and for a word nobody has started. */
+  typed: number
 }
+
+/** What a typed character did to the obstacles (spec 0003, AC-8). Each obstacle list is a new array. */
+export type TypeResult =
+  | { kind: 'miss' }
+  | { kind: 'progress'; obstacles: SymbolObstacle[] }
+  | { kind: 'destroyed'; obstacle: SymbolObstacle; obstacles: SymbolObstacle[] }
 
 /** The typing results shown on the Syntax Rush Game Over screen. */
 export type TypingStats = {
