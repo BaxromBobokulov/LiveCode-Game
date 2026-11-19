@@ -258,6 +258,8 @@ export const SYNTAX_WORDS_TIER_2: readonly string[] = [
   'string',
   'boolean',
   'function',
+  'livecode',
+  'baxromdev'
 ]
 
 /** Chance that a spawn below SYNTAX_TIER_2_SCORE is a word (otherwise a single character). */
