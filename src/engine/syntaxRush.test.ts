@@ -9,6 +9,8 @@ import {
   SYNTAX_MIN_VISIBLE_TIME,
   SYNTAX_SPAWN_INTERVAL_MAX,
   SYNTAX_SPAWN_INTERVAL_MIN,
+  WORD_CHANCE_TIER_1,
+  WORD_CHANCE_TIER_2,
   SYNTAX_SYMBOLS_TIER_1,
   SYNTAX_SYMBOLS_TIER_2,
   SYNTAX_VIEW_WIDTH,
@@ -289,8 +291,9 @@ describe('word lists', () => {
   it('unlocks the long words and a higher word chance at a full score of 200', () => {
     expect(wordPool(199)).toHaveLength(10)
     expect(wordPool(200)).toHaveLength(18)
-    expect(wordChance(199)).toBe(0.2)
-    expect(wordChance(200)).toBe(0.3)
+    expect(wordChance(199)).toBe(WORD_CHANCE_TIER_1)
+    expect(wordChance(200)).toBe(WORD_CHANCE_TIER_2)
+    expect(WORD_CHANCE_TIER_2).toBeGreaterThan(WORD_CHANCE_TIER_1)
   })
 })
 
@@ -332,8 +335,8 @@ describe('pickWord and pickSpawn', () => {
 
 describe('spawn gaps', () => {
   it('adds extra time per letter only after a word', () => {
-    expect(spawnGapAfter('k', () => 0)).toBe(0.7)
-    expect(spawnGapAfter('return', () => 0)).toBeCloseTo(0.7 + 6 * 0.3)
+    expect(spawnGapAfter('k', () => 0)).toBe(SYNTAX_SPAWN_INTERVAL_MIN)
+    expect(spawnGapAfter('return', () => 0)).toBeCloseTo(SYNTAX_SPAWN_INTERVAL_MIN + 6 * 0.3)
   })
 })
 
