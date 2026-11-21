@@ -56,16 +56,22 @@ export function letterChance(score: number): number {
 }
 
 /**
- * Picks the character for a new bug. First rolls letter or code symbol by the
- * tier's chance, then picks evenly inside that pool, never repeating
+ * Picks the character for a new bug: a letter, picked evenly, never repeating
  * `previous` (the last bug's character), so the same key never comes twice in a row.
+ *
+ * Code symbols are switched off for now (2026-11-21): students lost most of
+ * their lives to symbols that showed up unexpectedly. The symbol pools,
+ * codeSymbols and letterChance are kept. To bring symbols back, restore the
+ * commented line below, remove the letters-only line, rename `_score` back
+ * to `score`, and un-comment the symbol tests in syntaxRush.test.ts.
  */
 export function pickSymbol(
-  score: number,
+  _score: number, // only the commented symbol roll reads it; kept so callers need no change
   previous: string | null,
   random: () => number = Math.random,
 ): string {
-  const pool = random() < letterChance(score) ? SYNTAX_LETTERS : codeSymbols(score)
+  // const pool = random() < letterChance(score) ? SYNTAX_LETTERS : codeSymbols(score)
+  const pool = SYNTAX_LETTERS
   const choices = pool.filter((symbol) => symbol !== previous)
   return choices[Math.floor(random() * choices.length)]
 }

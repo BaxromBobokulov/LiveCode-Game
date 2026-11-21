@@ -130,17 +130,17 @@ Reused unchanged: `pickSymbol`, `classifyKey`, `matchesSymbol`, `syntaxSpeed`, `
 - New: `SYNTAX_WORDS_TIER_1 = ['if', 'for', 'int', 'float', 'char', 'else', 'switch', 'while', 'void', 'def', 'elif', 'in', 'not', 'and', 'or', 'pass', 'print', 'len', 'range', 'input', 'true', 'false']`, `SYNTAX_WORDS_TIER_2 = ['struct', 'printf', 'scanf', 'sizeof', 'include', 'lambda', 'import', 'global', 'return', 'continue', 'array', 'class', 'break', 'string', 'boolean', 'function']` (C and Python lists from 2026-11-19; see AC-1).
 - New: `WORD_CHANCE_TIER_1 = 0.35`, `WORD_CHANCE_TIER_2 = 0.45`.
 - New: `WORD_SPEED_FACTOR = 0.5`, `WORD_LETTER_TIME = 0.4` (s), `WORD_SPAWN_GAP_PER_LETTER = 0.3` (s).
-- New: `WORD_CHAR_WIDTH = 10 * SCALE` (was 9; raised 2026-11-19 with the tile font going from 14 to 16), `WORD_TILE_PADDING = 6 * SCALE` (world px; in the constants file, not the canvas, because the engine needs them for visibility and speed).
+- New: `WORD_CHAR_WIDTH = 11 * SCALE` (was 9; raised to 10 on 2026-11-19 with the tile font going from 14 to 16, and to 11 on 2026-11-21 with the font at 17), `WORD_TILE_PADDING = 6 * SCALE` (world px; in the constants file, not the canvas, because the engine needs them for visibility and speed).
 
 **Resulting numbers** (world px, `SCALE` 2; for tuning, not a test target except the guarantee):
 
 | Letters | Example | Tile width | Visible distance | Speed at start | Speed at top | Visible time at top | Guarantee |
 |---|---|---|---|---|---|---|---|
-| 1 (single) | `k` | 50 | 924 | 300 | 720 | 1.3 s | 1.0 s |
-| 2 | `if` | 64 | 924 | 150 | 360 | 2.6 s | 1.8 s |
-| 4 | `else` | 104 | 922 | 150 | 355 (cap) | 2.6 s | 2.6 s |
-| 6 | `return` | 144 | 902 | 150 | 265 (cap) | 3.4 s | 3.4 s |
-| 8 | `function` | 184 | 882 | 150 | 210 (cap) | 4.2 s | 4.2 s |
+| 1 (single) | `k` | 54 | 924 | 300 | 720 | 1.3 s | 1.0 s |
+| 2 | `if` | 68 | 924 | 150 | 360 | 2.6 s | 1.8 s |
+| 4 | `else` | 112 | 918 | 150 | 353 (cap) | 2.6 s | 2.6 s |
+| 6 | `return` | 156 | 896 | 150 | 264 (cap) | 3.4 s | 3.4 s |
+| 8 | `function` | 200 | 874 | 150 | 208 (cap) | 4.2 s | 4.2 s |
 
 At the start of a run every word gets about 6 s.
 

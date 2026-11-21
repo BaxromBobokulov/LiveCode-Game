@@ -65,11 +65,11 @@ const BLINK_DIM = 0.35
 const BLINK_STEP = 0.1
 
 // --- Character tiles above the bugs ---
-const SYMBOL_TILE_SIZE = 25 * SCALE
+const SYMBOL_TILE_SIZE = 27 * SCALE
 const SYMBOL_TILE_RADIUS = 5 * SCALE
 const SYMBOL_TILE_GAP = 6 * SCALE
-/** At the narrowest allowed window (view scale 0.8) this is about 26 CSS px, still easy to read. */
-const SYMBOL_FONT_SIZE = 16 * SCALE
+/** At the narrowest allowed window (view scale 0.8) this is about 27 CSS px, still easy to read. */
+const SYMBOL_FONT_SIZE = 17 * SCALE
 const SYMBOL_FONT = `bold ${SYMBOL_FONT_SIZE}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
 const TARGET_TILE_SCALE = 1.2
 const TARGET_OUTLINE_WIDTH = 1.5 * SCALE

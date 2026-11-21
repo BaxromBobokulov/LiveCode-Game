@@ -258,8 +258,7 @@ export const SYNTAX_WORDS_TIER_2: readonly string[] = [
   'string',
   'boolean',
   'function',
-  'livecode',
-  'baxromdev'
+  'livecode'
 ]
 
 /** Chance that a spawn below SYNTAX_TIER_2_SCORE is a word (otherwise a single character). */
@@ -282,7 +281,7 @@ export const WORD_LETTER_TIME = 0.4
 export const WORD_SPAWN_GAP_PER_LETTER = 0.3
 
 /** Width of one letter cell in a word tile, in px. The tile is drawn cell by cell, so this is exact. */
-export const WORD_CHAR_WIDTH = 10 * SCALE
+export const WORD_CHAR_WIDTH = 11 * SCALE
 
 /** Space between the tile's edge and its first or last letter cell, in px. */
 export const WORD_TILE_PADDING = 6 * SCALE

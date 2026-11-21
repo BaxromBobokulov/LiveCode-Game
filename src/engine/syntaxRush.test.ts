@@ -102,31 +102,59 @@ describe('character pools', () => {
 })
 
 describe('pickSymbol', () => {
-  it('rolls the letter pool first, then picks inside it', () => {
-    expect(pickSymbol(0, null, sequence(0.1, 0))).toBe('a')
-    expect(pickSymbol(0, 'a', sequence(0.1, 0))).toBe('b')
-  })
-
-  it('picks a tier 1 code symbol when the roll misses the letter chance', () => {
-    expect(pickSymbol(0, null, sequence(0.9, 0))).toBe(';')
-    expect(pickSymbol(0, ';', sequence(0.9, 0))).toBe('=')
-  })
-
-  it('can pick a tier 2 symbol once unlocked', () => {
-    expect(pickSymbol(200, null, sequence(0.9, 0.99))).toBe('+')
-  })
-
-  it('never repeats the previous character, in either pool and either tier', () => {
+  // Code symbols are switched off for now (see pickSymbol): every single is a letter.
+  it('picks only letters, in both tiers', () => {
     for (const score of [0, 200]) {
-      for (const previous of [...SYNTAX_LETTERS, ...codeSymbols(score)]) {
-        for (const roll of [0, 0.6, 0.8, 0.99]) {
-          for (const pick of [0, 0.5, 0.999]) {
-            expect(pickSymbol(score, previous, sequence(roll, pick))).not.toBe(previous)
-          }
+      for (const pick of [0, 0.5, 0.999]) {
+        expect(SYNTAX_LETTERS).toContain(pickSymbol(score, null, sequence(pick)))
+      }
+    }
+  })
+
+  it('picks evenly inside the letters', () => {
+    expect(pickSymbol(0, null, sequence(0))).toBe('a')
+    expect(pickSymbol(0, 'a', sequence(0))).toBe('b')
+    expect(pickSymbol(0, null, sequence(0.999))).toBe('z')
+  })
+
+  it('never repeats the previous letter, in either tier', () => {
+    for (const score of [0, 200]) {
+      for (const previous of SYNTAX_LETTERS) {
+        for (const pick of [0, 0.5, 0.999]) {
+          expect(pickSymbol(score, previous, sequence(pick))).not.toBe(previous)
         }
       }
     }
   })
+
+  // Symbol tests, kept for when code symbols come back. Restore these (and the
+  // roll in pickSymbol) together; the first random() is then the letter roll.
+  //
+  // it('rolls the letter pool first, then picks inside it', () => {
+  //   expect(pickSymbol(0, null, sequence(0.1, 0))).toBe('a')
+  //   expect(pickSymbol(0, 'a', sequence(0.1, 0))).toBe('b')
+  // })
+  //
+  // it('picks a tier 1 code symbol when the roll misses the letter chance', () => {
+  //   expect(pickSymbol(0, null, sequence(0.9, 0))).toBe(';')
+  //   expect(pickSymbol(0, ';', sequence(0.9, 0))).toBe('=')
+  // })
+  //
+  // it('can pick a tier 2 symbol once unlocked', () => {
+  //   expect(pickSymbol(200, null, sequence(0.9, 0.99))).toBe('+')
+  // })
+  //
+  // it('never repeats the previous character, in either pool and either tier', () => {
+  //   for (const score of [0, 200]) {
+  //     for (const previous of [...SYNTAX_LETTERS, ...codeSymbols(score)]) {
+  //       for (const roll of [0, 0.6, 0.8, 0.99]) {
+  //         for (const pick of [0, 0.5, 0.999]) {
+  //           expect(pickSymbol(score, previous, sequence(roll, pick))).not.toBe(previous)
+  //         }
+  //       }
+  //     }
+  //   }
+  // })
 })
 
 describe('classifyKey', () => {
@@ -325,11 +353,11 @@ describe('pickWord and pickSpawn', () => {
 
   it('rolls word or single first', () => {
     expect(pickSpawn(0, null, null, [], sequence(0.1, 0))).toBe('if')
-    expect(pickSpawn(0, null, null, [], sequence(0.5, 0.1, 0))).toBe('a')
+    expect(pickSpawn(0, null, null, [], sequence(0.5, 0))).toBe('a')
   })
 
   it('still never repeats the last single, even with a word spawned in between', () => {
-    expect(pickSpawn(0, 'a', 'if', [], sequence(0.5, 0.1, 0))).toBe('b')
+    expect(pickSpawn(0, 'a', 'if', [], sequence(0.5, 0))).toBe('b')
   })
 })
 
@@ -355,10 +383,10 @@ describe('word speed and fairness', () => {
   })
 
   it('matches the spec numbers for tile width and visible distance', () => {
-    expect(wordLabelWidth(2)).toBe(64)
-    expect(wordLabelWidth(8)).toBe(184)
+    expect(wordLabelWidth(2)).toBe(68)
+    expect(wordLabelWidth(8)).toBe(200)
     expect(wordVisibleDistance(2)).toBe(924)
-    expect(wordVisibleDistance(8)).toBe(882)
+    expect(wordVisibleDistance(8)).toBe(874)
   })
 
   it('moves a single and a word by different distances, keeping typed', () => {
